@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thanh toán — wfigure</title>
+<meta name="description" content="Hoàn tất thông tin giao hàng và thanh toán cho đơn hàng của bạn tại wfigure.">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="/index.html">Trang chủ</a> / <a href="/cart.html">Giỏ hàng</a> / <span>Thanh toán</span></div>
+      <h1 class="page-title">Thanh toán</h1>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <div id="checkoutContent">
+        <div class="empty-state">Đang tải…</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+const ICONS_CO = {
+  user: ICONS.user,
+  truck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8Z"/><circle cx="5.5" cy="18.5" r="1.5"/><circle cx="18.5" cy="18.5" r="1.5"/></svg>`,
+  store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v11H3z"/><path d="M9 20v-6h6v6"/></svg>`,
+  pin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  cod: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="3"/><path d="M6 6V4h12v2"/></svg>`,
+  cash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 7v10M18 7v10"/></svg>`,
+  qr: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM19 14h2v2h-2zM14 19h2v2h-2zM19 19h2v2h-2z"/></svg>`,
+  invoice: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 13h6M9 17h6"/></svg>`,
+  note: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>`,
+  bag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 7v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-3-5"/><path d="M3 7h18"/><path d="M16 11a4 4 0 0 1-8 0"/></svg>`,
+  tag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.34-4.34a2 2 0 0 0 .01-2.83Z"/><circle cx="7.5" cy="7.5" r="1"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`
+};
+
+const PROMO_CODES = { WF10: { percent: 10, minSubtotal: 500000 } };
+const state = {
+  user: null,
+  delivery: 'ship',        // 'ship' | 'pickup'
+  payment: 'cod',          // 'cod' | 'cash' | 'qr'
+  promo: null,             // { code, percent }
+  invoiceOpen: false
+};
+
+async function loadUser() {
+  try {
+    const res = await fetch('/api/me');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.user.role !== 'admin') state.user = data.user;
+    }
+  } catch (e) { /* guest checkout */ }
+}
+
+function shippingFee() {
+  return 0; // flat free shipping for this store, matches cart page note
+}
+
+function computeTotals() {
+  const subtotal = cartSubtotal();
+  const shipping = shippingFee();
+  let discount = 0;
+  if (state.promo) discount = Math.round(subtotal * (state.promo.percent / 100));
+  const total = Math.max(0, subtotal + shipping - discount);
+  return { subtotal, shipping, discount, total };
+}
+
+function renderCheckout() {
+  const cart = getCart();
+  const container = document.getElementById('checkoutContent');
+
+  if (!cart.length) {
+    container.innerHTML = `
+      <div class="cart-empty">
+        ${ICONS_CO.bag}
+        <div>Giỏ hàng của bạn đang trống.</div>
+        <p style="margin:14px 0 0;">Quay lại <a href="/category.html?category=all">cửa hàng</a> để chọn sản phẩm trước khi thanh toán.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="checkout-layout">
+      <div class="checkout-col-main">
+
+        <div class="checkout-card" id="accountCard"></div>
+
+        <div class="checkout-card">
+          <div class="card-head">${ICONS_CO.pin}<h3>Thông tin giao hàng</h3></div>
+          <div class="checkout-tabs">
+            <button type="button" class="checkout-tab-btn ${state.delivery === 'ship' ? 'active' : ''}" data-delivery="ship">${ICONS_CO.truck} Giao tận nơi</button>
+            <button type="button" class="checkout-tab-btn ${state.delivery === 'pickup' ? 'active' : ''}" data-delivery="pickup">${ICONS_CO.store} Nhận tại cửa hàng</button>
+          </div>
+          <div id="deliveryFields"></div>
+        </div>
+
+        <div class="checkout-card">
+          <div class="card-head">${ICONS_CO.cod}<h3>Phương thức thanh toán</h3></div>
+          <div class="payment-options" id="paymentOptions"></div>
+        </div>
+
+        <div class="checkout-card">
+          <div class="toggle-row" id="invoiceToggle">
+            <span class="toggle-label" style="display:flex;align-items:center;gap:10px;">${ICONS_CO.invoice} Hoá đơn điện tử</span>
+            <span class="toggle-arrow" id="invoiceArrow">Yêu cầu xuất ${ICONS.chevronRight}</span>
+          </div>
+          <div class="invoice-fields" id="invoiceFields">
+            <div class="field-row">
+              <div class="field"><label>Tên công ty</label><input type="text" id="invCompany" placeholder="Công ty TNHH..."></div>
+              <div class="field"><label>Mã số thuế</label><input type="text" id="invTax" placeholder="0123456789"></div>
+            </div>
+            <div class="field"><label>Email nhận hoá đơn</label><input type="email" id="invEmail" placeholder="email@congty.com"></div>
+          </div>
+        </div>
+
+        <div class="checkout-card">
+          <div class="card-head">${ICONS_CO.note}<h3>Ghi chú đơn hàng</h3></div>
+          <textarea id="orderNote" rows="3" placeholder="Ví dụ: giao giờ hành chính, gọi trước khi giao..." style="width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ink);color:var(--text);font-size:0.92rem;resize:vertical;"></textarea>
+        </div>
+
+      </div>
+
+      <aside class="checkout-col-side">
+        <div class="cart-summary">
+          <div class="card-head" style="margin-bottom:14px;">${ICONS_CO.bag}<h3 style="margin:0;">Giỏ hàng</h3></div>
+          <div id="checkoutCartList">
+            ${cart.map(checkoutCartItemHTML).join('')}
+          </div>
+
+          <div style="margin-top:18px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-dim);margin-bottom:8px;">${ICONS_CO.tag} Mã khuyến mãi</label>
+            <div class="promo-row">
+              <input type="text" id="promoInput" placeholder="Nhập mã khuyến mãi" style="padding:11px 14px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ink);color:var(--text);font-size:0.88rem;">
+              <button type="button" class="btn btn-outline btn-sm" id="applyPromoBtn">Áp dụng</button>
+            </div>
+            <div id="promoAppliedBox"></div>
+          </div>
+
+          <div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
+            <div class="cart-summary-row"><span>Tổng tiền hàng</span><span id="sumSubtotal"></span></div>
+            <div class="cart-summary-row"><span>Phí vận chuyển</span><span id="sumShipping"></span></div>
+            <div class="cart-summary-row" id="sumDiscountRow" style="display:none;"><span>Giảm giá</span><span id="sumDiscount" style="color:var(--success);"></span></div>
+            <div class="cart-summary-row total"><span>Tổng thanh toán</span><span class="price-now" id="sumTotal"></span></div>
+          </div>
+
+          <button class="btn btn-primary btn-block" id="placeOrderBtn" style="margin-top:18px;">Đặt hàng</button>
+          <p style="font-size:0.76rem;color:var(--text-faint);margin-top:10px;text-align:center;">Bằng việc đặt hàng, bạn đồng ý với điều khoản mua hàng của wfigure.</p>
+        </div>
+      </aside>
+    </div>`;
+
+  renderAccountCard();
+  renderDeliveryFields();
+  renderPaymentOptions();
+  renderPromoState();
+  updateSummary();
+  wireCheckoutEvents();
+}
+
+function checkoutCartItemHTML(item) {
+  const media = item.image
+    ? `<img src="${item.image}" alt="${item.name}"/>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.2"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5"/><path d="M12 12v10"/></svg>`;
+  return `
+  <div class="checkout-cart-item">
+    <div class="cc-media">${media}<span class="cc-qty-badge">${item.qty}</span></div>
+    <div class="cc-info">
+      <span class="cc-name">${item.name}</span>
+      <span class="cc-brand">${item.brand || ''}</span>
+    </div>
+    <span class="cc-price">${formatVND(item.price * item.qty)}</span>
+  </div>`;
+}
+
+function renderAccountCard() {
+  const card = document.getElementById('accountCard');
+  if (state.user) {
+    const initial = (state.user.name || '?').trim().charAt(0).toUpperCase();
+    card.innerHTML = `
+      <div class="account-mini">
+        <div class="account-mini-user">
+          <div class="account-mini-avatar">${initial}</div>
+          <div>
+            <div class="account-mini-name">${state.user.name}</div>
+            <div class="account-mini-email">${state.user.email}</div>
+          </div>
+        </div>
+        <a href="#" class="link-btn" id="logoutLink">Đăng xuất</a>
+      </div>`;
+    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.reload();
+    });
+  } else {
+    card.innerHTML = `
+      <div class="card-head" style="margin-bottom:8px;">${ICONS_CO.user}<h3 style="margin:0;">Tài khoản</h3></div>
+      <p class="guest-note">Bạn đang đặt hàng với tư cách khách. <a href="/login.html">Đăng nhập</a> để theo dõi đơn hàng dễ dàng hơn, hoặc tiếp tục điền thông tin bên dưới.</p>
+      <div class="field" style="margin-top:14px;"><label>Email liên hệ *</label><input type="email" id="guestEmail" placeholder="email@example.com"></div>`;
+  }
+}
+
+function renderDeliveryFields() {
+  const wrap = document.getElementById('deliveryFields');
+  const name = state.user ? state.user.name : '';
+  if (state.delivery === 'ship') {
+    wrap.innerHTML = `
+      <div class="field"><label>Họ và tên *</label><input type="text" id="custName" value="${name}" placeholder="Nguyễn Văn A"></div>
+      <div class="field-row">
+        <div class="field"><label>Số điện thoại *</label><input type="tel" id="custPhone" placeholder="09xxxxxxxx"></div>
+        <div class="field"><label>Quốc gia</label><input type="text" id="custCountry" value="Việt Nam"></div>
+      </div>
+      <div class="field"><label>Địa chỉ, tên đường *</label><input type="text" id="custAddress" placeholder="Số nhà, tên đường"></div>
+      <div class="field"><label>Tỉnh/TP, Quận/Huyện, Phường/Xã *</label><input type="text" id="custWard" placeholder="Phường/Xã, Quận/Huyện, Tỉnh/TP"></div>
+      <div class="field">
+        <label>Phương thức giao hàng</label>
+        <div class="shipping-method-box" id="shippingMethodBox">Nhập địa chỉ để xem các phương thức giao hàng</div>
+      </div>`;
+    ['custAddress', 'custWard'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateShippingMethodBox);
+    });
+    updateShippingMethodBox();
+  } else {
+    wrap.innerHTML = `
+      <div class="field"><label>Họ và tên *</label><input type="text" id="custName" value="${name}" placeholder="Nguyễn Văn A"></div>
+      <div class="field"><label>Số điện thoại *</label><input type="tel" id="custPhone" placeholder="09xxxxxxxx"></div>
+      <div class="pickup-info">
+        ${ICONS_CO.pin}
+        <div>
+          <strong style="color:var(--text);">Cửa hàng wfigure</strong><br>
+          32 Đồng Xoài, Tân Bình, TP. Hồ Chí Minh<br>
+          Mở cửa hàng ngày 09:00 – 20:30 · Hotline ${SUPPORT_PHONE}<br>
+          Chúng tôi sẽ gọi điện xác nhận khi đơn hàng sẵn sàng để nhận.
+        </div>
+      </div>`;
+  }
+}
+
+function updateShippingMethodBox() {
+  const box = document.getElementById('shippingMethodBox');
+  if (!box) return;
+  const addr = document.getElementById('custAddress').value.trim();
+  const ward = document.getElementById('custWard').value.trim();
+  if (addr && ward) {
+    box.className = 'shipping-method-box filled';
+    box.innerHTML = `<span>Giao hàng tiêu chuẩn (2–4 ngày)</span><span class="free">Miễn phí</span>`;
+  } else {
+    box.className = 'shipping-method-box';
+    box.textContent = 'Nhập địa chỉ để xem các phương thức giao hàng';
+  }
+}
+
+function paymentOptionData(key) {
+  return {
+    cod: {
+      icon: ICONS_CO.cod,
+      label: 'Thanh toán khi giao hàng (COD)',
+      body: `<ul>
+        <li>Thanh toán COD không áp dụng cho sản phẩm Đặt Trước (tag Pre-order/Order)</li>
+        <li>Đơn hàng trên 1.000.000₫ sẽ thu thêm phí thu hộ &amp; bảo hiểm tối thiểu 30.000₫ tuỳ theo giá trị đơn hàng</li>
+        <li>Chúng tôi sẽ gọi điện để xác nhận đơn hàng, sau 2 lần không nghe máy đơn hàng sẽ bị huỷ</li>
+      </ul>`
+    },
+    cash: {
+      icon: ICONS_CO.cash,
+      label: 'Tiền mặt tại cửa hàng',
+      body: `<ul><li>Thanh toán trực tiếp bằng tiền mặt khi nhận sản phẩm tại cửa hàng wfigure.</li></ul>`
+    },
+    qr: {
+      icon: ICONS_CO.qr,
+      label: 'Chuyển khoản qua QR - SACOMBANK',
+      qr: true
+    }
+  }[key];
+}
+
+function renderPaymentOptions() {
+  const wrap = document.getElementById('paymentOptions');
+  wrap.innerHTML = ['cod', 'cash', 'qr'].map(key => {
+    const opt = paymentOptionData(key);
+    const selected = state.payment === key;
+    return `
+    <div class="payment-option ${selected ? 'selected' : ''}" data-payment="${key}">
+      <label class="payment-option-head" style="cursor:pointer;">
+        <input type="radio" name="paymentMethod" value="${key}" ${selected ? 'checked' : ''}>
+        <span class="payment-option-icon">${opt.icon}</span>
+        <span class="payment-option-label">${opt.label}</span>
+      </label>
+      ${selected && opt.body ? `<div class="payment-option-body">${opt.body}</div>` : ''}
+      ${selected && opt.qr ? `
+      <div class="qr-panel">
+        <div class="qr-panel-box">${ICONS_CO.qr}</div>
+        <div class="qr-panel-details">
+          Ngân hàng: <strong>Sacombank</strong><br>
+          Chủ tài khoản: <strong>CONG TY WFIGURE</strong><br>
+          Số tài khoản: <strong>0699999999999</strong><br>
+          Nội dung CK: <strong>Mã đơn hàng của bạn</strong> (hiện sau khi đặt hàng)<br>
+          <span style="color:var(--text-faint);">Quét mã QR hoặc chuyển khoản đúng nội dung để đơn hàng được xử lý nhanh nhất.</span>
+        </div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.payment-option').forEach(el => {
+    el.addEventListener('click', () => {
+      state.payment = el.dataset.payment;
+      renderPaymentOptions();
+    });
+  });
+}
+
+function renderPromoState() {
+  const box = document.getElementById('promoAppliedBox');
+  const input = document.getElementById('promoInput');
+  if (state.promo) {
+    input.value = state.promo.code;
+    input.disabled = true;
+    box.innerHTML = `<div class="promo-applied"><span>Đã áp dụng mã <strong>${state.promo.code}</strong> (-${state.promo.percent}%)</span><button type="button" id="removePromoBtn">Xoá</button></div>`;
+    document.getElementById('removePromoBtn').addEventListener('click', () => {
+      state.promo = null;
+      renderPromoState();
+      updateSummary();
+    });
+  } else {
+    input.disabled = false;
+    box.innerHTML = '';
+  }
+}
+
+function applyPromoCode() {
+  const input = document.getElementById('promoInput');
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+  const found = PROMO_CODES[code];
+  const subtotal = cartSubtotal();
+  if (!found) {
+    showToast('Mã khuyến mãi không hợp lệ.', 'error');
+    return;
+  }
+  if (found.minSubtotal && subtotal < found.minSubtotal) {
+    showToast(`Mã ${code} chỉ áp dụng cho đơn hàng từ ${formatVND(found.minSubtotal)}.`, 'error');
+    return;
+  }
+  state.promo = { code, percent: found.percent };
+  showToast(`Áp dụng mã ${code} thành công!`, 'success');
+  renderPromoState();
+  updateSummary();
+}
+
+function updateSummary() {
+  const { subtotal, shipping, discount, total } = computeTotals();
+  document.getElementById('sumSubtotal').textContent = formatVND(subtotal);
+  document.getElementById('sumShipping').textContent = shipping ? formatVND(shipping) : 'Miễn phí';
+  const discountRow = document.getElementById('sumDiscountRow');
+  if (discount > 0) {
+    discountRow.style.display = 'flex';
+    document.getElementById('sumDiscount').textContent = `-${formatVND(discount)}`;
+  } else {
+    discountRow.style.display = 'none';
+  }
+  document.getElementById('sumTotal').textContent = formatVND(total);
+}
+
+function wireCheckoutEvents() {
+  document.querySelectorAll('.checkout-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.delivery = btn.dataset.delivery;
+      document.querySelectorAll('.checkout-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderDeliveryFields();
+    });
+  });
+
+  const invoiceToggle = document.getElementById('invoiceToggle');
+  invoiceToggle.addEventListener('click', () => {
+    state.invoiceOpen = !state.invoiceOpen;
+    document.getElementById('invoiceFields').classList.toggle('open', state.invoiceOpen);
+    document.getElementById('invoiceArrow').innerHTML = state.invoiceOpen
+      ? `Ẩn ${ICONS.chevronRight}` : `Yêu cầu xuất ${ICONS.chevronRight}`;
+  });
+
+  document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
+  document.getElementById('promoInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyPromoCode(); }
+  });
+
+  document.getElementById('placeOrderBtn').addEventListener('click', submitOrder);
+}
+
+function validateOrder() {
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  if (!name) { showToast('Vui lòng nhập họ và tên.', 'error'); return null; }
+  if (!phone) { showToast('Vui lòng nhập số điện thoại.', 'error'); return null; }
+  if (!/^[0-9+\s]{8,15}$/.test(phone)) { showToast('Số điện thoại không hợp lệ.', 'error'); return null; }
+
+  let email = state.user ? state.user.email : (document.getElementById('guestEmail') ? document.getElementById('guestEmail').value.trim() : '');
+  if (!state.user && !email) { showToast('Vui lòng nhập email liên hệ.', 'error'); return null; }
+
+  let address = '', ward = '', country = 'Việt Nam';
+  if (state.delivery === 'ship') {
+    address = document.getElementById('custAddress').value.trim();
+    ward = document.getElementById('custWard').value.trim();
+    country = document.getElementById('custCountry').value.trim() || 'Việt Nam';
+    if (!address) { showToast('Vui lòng nhập địa chỉ giao hàng.', 'error'); return null; }
+    if (!ward) { showToast('Vui lòng nhập Tỉnh/TP, Quận/Huyện, Phường/Xã.', 'error'); return null; }
+  }
+
+  const invoice = state.invoiceOpen ? {
+    requested: true,
+    company: document.getElementById('invCompany').value.trim(),
+    taxCode: document.getElementById('invTax').value.trim(),
+    email: document.getElementById('invEmail').value.trim()
+  } : { requested: false };
+
+  return {
+    customer: { name, phone, email },
+    delivery: { method: state.delivery, address, ward, country },
+    payment: state.payment,
+    invoice,
+    note: document.getElementById('orderNote').value.trim(),
+    promoCode: state.promo ? state.promo.code : null,
+    items: getCart().map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, image: i.image, brand: i.brand }))
+  };
+}
+
+async function submitOrder() {
+  const payload = validateOrder();
+  if (!payload) return;
+
+  const btn = document.getElementById('placeOrderBtn');
+  btn.disabled = true;
+  btn.textContent = 'Đang xử lý...';
+
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Đặt hàng thất bại.');
+
+    saveCart([]);
+    renderOrderSuccess(data.order);
+  } catch (e) {
+    showToast(e.message || 'Có lỗi xảy ra, vui lòng thử lại.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Đặt hàng';
+  }
+}
+
+function renderOrderSuccess(order) {
+  const container = document.getElementById('checkoutContent');
+  container.innerHTML = `
+    <div class="order-success">
+      ${ICONS_CO.check}
+      <h2>Đặt hàng thành công!</h2>
+      <p>Mã đơn hàng của bạn: <span class="order-code">#${order.code}</span></p>
+      <p>Chúng tôi đã ghi nhận đơn hàng và sẽ liên hệ qua số điện thoại <strong>${order.customer.phone}</strong> để xác nhận trong thời gian sớm nhất.</p>
+      <p style="color:var(--text-faint);font-size:0.85rem;">Mọi thắc mắc vui lòng gọi hotline ${SUPPORT_PHONE}.</p>
+      <a href="/index.html" class="btn btn-primary">Về trang chủ</a>
+    </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadUser();
+  renderCheckout();
+});
+</script>
+</body>
+</html>

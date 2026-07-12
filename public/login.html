@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login / Register — wfigure</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <div class="container">
+    <div class="auth-wrap">
+      <div class="auth-side">
+        <span class="eyebrow" data-edit-id="login.eyebrow" data-edit-type="text" data-edit-label="Login side eyebrow">wfigure member</span>
+        <h3 data-edit-id="login.heading" data-edit-type="text" data-edit-label="Login side heading">Join the collection.</h3>
+        <p data-edit-id="login.intro" data-edit-type="text" data-edit-label="Login side intro">Track pre-orders, save your favorite characters, and get early access to flash sales. Existing members log in on the right — new here? Switch to Register.</p>
+        <p style="margin-top:20px;">Support hotline: <strong style="color:var(--gold);">0365244436</strong></p>
+      </div>
+      <div class="auth-form-wrap">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="login">Login</button>
+          <button class="tab-btn" data-tab="register">Register</button>
+        </div>
+
+        <div id="loginAlert" class="alert"></div>
+
+        <div id="googleSignInWrap" style="display:none;">
+          <div id="googleSignInBtn" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
+        </div>
+
+        <div id="facebookSignInWrap" style="display:none;margin-bottom:16px;">
+          <button type="button" id="facebookSignInBtn" class="btn btn-block" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#1877F2;color:#fff;border:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.51 1.49-3.9 3.77-3.9 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.89h2.78l-.44 2.91h-2.34V22c4.78-.76 8.44-4.92 8.44-9.94Z"/></svg>
+            Continue with Facebook
+          </button>
+        </div>
+
+        <div id="socialSignInDivider" style="display:none;align-items:center;gap:12px;margin-bottom:16px;color:var(--text-faint);font-size:13px;">
+          <span style="flex:1;height:1px;background:var(--border,#333);"></span>
+          <span>or</span>
+          <span style="flex:1;height:1px;background:var(--border,#333);"></span>
+        </div>
+
+        <form id="loginForm" data-mode="login">
+          <div class="field">
+            <label for="loginUsername">Email or Username</label>
+            <input type="text" id="loginUsername" name="username" placeholder="you@email.com" required>
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" name="password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Login</button>
+          <p class="form-note">New here? <a href="#" data-tab-link="register">Create an account</a></p>
+        </form>
+
+        <form id="registerForm" data-mode="register" style="display:none;">
+          <div class="field">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" name="name" placeholder="Nguyen Van A" required>
+          </div>
+          <div class="field">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" name="email" placeholder="you@email.com" required>
+          </div>
+          <div class="field">
+            <label for="regPhone">Phone (optional)</label>
+            <input type="tel" id="regPhone" name="phone" placeholder="09xx xxx xxx">
+          </div>
+          <div class="field">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" name="password" placeholder="At least 6 characters" required minlength="6">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+          <p class="form-note">Already have an account? <a href="#" data-tab-link="login">Log in</a></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+const tabBtns = document.querySelectorAll('.tab-btn');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const alertBox = document.getElementById('loginAlert');
+
+function switchTab(tab) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  loginForm.style.display = tab === 'login' ? 'block' : 'none';
+  registerForm.style.display = tab === 'register' ? 'block' : 'none';
+  alertBox.className = 'alert';
+}
+
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+document.querySelectorAll('[data-tab-link]').forEach(a => a.addEventListener('click', (e) => {
+  e.preventDefault();
+  switchTab(a.dataset.tabLink);
+}));
+
+// deep-link ?tab=register
+const initialTab = new URLSearchParams(window.location.search).get('tab');
+if (initialTab === 'register') switchTab('register');
+
+function setAlert(msg, type) {
+  alertBox.textContent = msg;
+  alertBox.className = `alert alert-${type} show`;
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(loginForm));
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) { setAlert(result.error || 'Login failed.', 'error'); return; }
+    setAlert(result.message, 'success');
+    setTimeout(() => {
+      window.location.href = result.role === 'admin' ? '/admin/dashboard.html' : '/index.html';
+    }, 700);
+  } catch (err) {
+    setAlert('Something went wrong. Please try again.', 'error');
+  }
+});
+
+registerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(registerForm));
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) { setAlert(result.error || 'Registration failed.', 'error'); return; }
+    setAlert(result.message + ' Redirecting to login...', 'success');
+    setTimeout(() => switchTab('login'), 1200);
+    registerForm.reset();
+  } catch (err) {
+    setAlert('Something went wrong. Please try again.', 'error');
+  }
+});
+
+// ---- Google Sign-In ----
+// Works for both login and registration: the backend creates the account
+// automatically the first time someone signs in with a given Google
+// account, so a single button above the tabs covers both flows.
+async function handleGoogleCredential(response) {
+  try {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential })
+    });
+    const result = await res.json();
+    if (!res.ok) { setAlert(result.error || 'Google sign-in failed.', 'error'); return; }
+    setAlert(result.message, 'success');
+    setTimeout(() => { window.location.href = '/index.html'; }, 700);
+  } catch (err) {
+    setAlert('Something went wrong signing in with Google.', 'error');
+  }
+}
+
+// Shows the "or" divider as soon as at least one social sign-in button
+// (Google and/or Facebook) has been switched on.
+function showSocialDivider() {
+  document.getElementById('socialSignInDivider').style.display = 'flex';
+}
+
+// ---- Facebook Login ----
+// Works for both login and registration, same as Google above: the
+// backend creates the account automatically the first time someone signs
+// in with a given Facebook account.
+async function handleFacebookAccessToken(accessToken) {
+  try {
+    const res = await fetch('/api/auth/facebook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken })
+    });
+    const result = await res.json();
+    if (!res.ok) { setAlert(result.error || 'Facebook sign-in failed.', 'error'); return; }
+    setAlert(result.message, 'success');
+    setTimeout(() => { window.location.href = '/index.html'; }, 700);
+  } catch (err) {
+    setAlert('Something went wrong signing in with Facebook.', 'error');
+  }
+}
+
+(async function initSocialSignIn() {
+  let cfg;
+  try {
+    const res = await fetch('/api/config');
+    cfg = await res.json();
+  } catch (e) {
+    return; // Social sign-in is optional — regular email/password still works.
+  }
+
+  // Google
+  if (cfg.googleClientId) {
+    try {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        if (!window.google || !window.google.accounts) return;
+        window.google.accounts.id.initialize({
+          client_id: cfg.googleClientId,
+          callback: handleGoogleCredential
+        });
+        window.google.accounts.id.renderButton(
+          document.getElementById('googleSignInBtn'),
+          { theme: 'outline', size: 'large', width: 320, text: 'continue_with' }
+        );
+        document.getElementById('googleSignInWrap').style.display = 'block';
+        showSocialDivider();
+      };
+      document.head.appendChild(script);
+    } catch (e) {
+      // If anything goes wrong here, the regular form still works fine.
+    }
+  }
+
+  // Facebook
+  if (cfg.facebookAppId) {
+    try {
+      window.fbAsyncInit = function() {
+        FB.init({ appId: cfg.facebookAppId, cookie: true, xfbml: false, version: 'v20.0' });
+      };
+      const script = document.createElement('script');
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+
+      document.getElementById('facebookSignInBtn').addEventListener('click', () => {
+        if (!window.FB) { setAlert('Facebook SDK is still loading, please try again in a moment.', 'error'); return; }
+        FB.login((response) => {
+          if (response.authResponse && response.authResponse.accessToken) {
+            handleFacebookAccessToken(response.authResponse.accessToken);
+          }
+        }, { scope: 'email public_profile' });
+      });
+      document.getElementById('facebookSignInWrap').style.display = 'block';
+      showSocialDivider();
+    } catch (e) {
+      // If anything goes wrong here, the regular form still works fine.
+    }
+  }
+})();
+</script>
+</body>
+</html>

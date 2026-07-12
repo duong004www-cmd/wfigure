@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog &amp; News — wfigure</title>
+<meta name="description" content="News, restocks and collector tips from wfigure.">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="/index.html">Home</a> / <span>Blog</span></div>
+      <h1 class="page-title">Blog &amp; News</h1>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="quickstrip-row" id="blogCategoryTabs" style="margin-bottom:28px;"></div>
+      <div class="blog-grid" id="blogListGrid"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+let currentBlogCategory = 'all';
+
+function getParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+async function loadBlogCategories() {
+  try {
+    const res = await fetch('/api/blog');
+    const posts = await res.json();
+    const cats = ['all', ...new Set(posts.map(p => p.category).filter(Boolean))];
+    const tabs = document.getElementById('blogCategoryTabs');
+    tabs.innerHTML = cats.map(c => `<button type="button" class="quickchip blog-tab" data-cat="${c}" style="border:1px solid var(--line);background:${c === currentBlogCategory ? 'var(--coral)' : 'var(--surface)'};color:${c === currentBlogCategory ? '#1a0a0e' : 'var(--text-dim)'};">${c === 'all' ? 'All Posts' : c}</button>`).join('');
+    tabs.querySelectorAll('.blog-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentBlogCategory = btn.dataset.cat;
+        loadBlogCategories();
+        loadBlogList();
+      });
+    });
+  } catch (e) { console.error(e); }
+}
+
+async function loadBlogList() {
+  const grid = document.getElementById('blogListGrid');
+  grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Loading…</div>`;
+  try {
+    const url = currentBlogCategory === 'all' ? '/api/blog' : `/api/blog?category=${encodeURIComponent(currentBlogCategory)}`;
+    const res = await fetch(url);
+    const posts = await res.json();
+    grid.innerHTML = posts.map(blogCardHTML).join('') || `<div class="empty-state" style="grid-column:1/-1;">No posts yet — check back soon.</div>`;
+  } catch (e) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Couldn't load posts.</div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  currentBlogCategory = getParam('category') || 'all';
+  loadBlogCategories();
+  loadBlogList();
+});
+</script>
+</body>
+</html>

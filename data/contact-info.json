@@ -1,0 +1,27 @@
+[
+  {
+    "id": "ci001",
+    "type": "phone",
+    "label": "Hotline",
+    "value": "0365244436"
+  },
+  {
+    "id": "ci002",
+    "type": "zalo",
+    "label": "Zalo",
+    "value": "0365244436"
+  },
+  {
+    "id": "ci003",
+    "type": "email",
+    "label": "Email",
+    "value": "contact@wfigure.vn"
+  },
+  {
+    "id": "ci004",
+    "type": "address",
+    "label": "Store Address",
+    "value": "32 Đồng Xoài, Phường Tân Bình, TP. Hồ Chí Minh",
+    "mapUrl": null
+  }
+]

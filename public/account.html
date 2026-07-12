@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — wfigure</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="/index.html">Home</a> / <span>My Account</span></div>
+      <h1 class="page-title" data-edit-id="account.title" data-edit-type="text" data-edit-label="Account page title">My Account</h1>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width:520px;">
+      <div class="contact-info-card" id="accountCard">
+        <p style="color:var(--text-dim);">Loading account…</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+async function loadAccount() {
+  const card = document.getElementById('accountCard');
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) throw new Error('not logged in');
+    const data = await res.json();
+    if (data.user.role === 'admin') { window.location.href = '/admin/dashboard.html'; return; }
+    card.innerHTML = `
+      <div class="info-row">
+        <div>
+          <h4>Name</h4>
+          <p>${data.user.name}</p>
+        </div>
+      </div>
+      <div class="info-row">
+        <div>
+          <h4>Email</h4>
+          <p>${data.user.email}</p>
+        </div>
+      </div>
+      <button id="logoutBtn" class="btn btn-outline btn-block" style="margin-top:10px;">Log Out</button>
+    `;
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/index.html';
+    });
+  } catch (e) {
+    window.location.href = '/login.html';
+  }
+}
+document.addEventListener('DOMContentLoaded', loadAccount);
+</script>
+</body>
+</html>

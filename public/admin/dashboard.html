@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — wfigure</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-body">
+
+<div id="adminGate" class="admin-gate">
+  <p>Checking admin session…</p>
+</div>
+
+<div id="adminApp" class="admin-shell" style="display:none;">
+  <aside class="admin-sidebar">
+    <a href="/index.html" class="logo" style="margin-bottom:32px;display:block;">w<span class="accent">figure</span><span class="dot">.</span></a>
+    <nav class="admin-nav">
+      <button class="admin-nav-item" data-view="orders" data-title="Orders"><span>Orders</span><span class="nav-badge" id="ordersNavBadge" style="display:none;">0</span></button>
+      <button class="admin-nav-item active" data-view="products" data-title="Products">Products</button>
+      <button class="admin-nav-item" data-view="add" data-title="Add / Upload">Add / Upload</button>
+      <button class="admin-nav-item" data-view="bulk" data-title="Bulk Import">Bulk Import</button>
+      <button class="admin-nav-item" data-view="flashsale" data-title="Flash Sale">Flash Sale</button>
+      <button class="admin-nav-item" data-view="blog" data-title="Blog / News">Blog / News</button>
+      <button class="admin-nav-item" data-view="messages" data-title="Contact Messages">Contact Messages</button>
+      <button class="admin-nav-item" data-view="contactinfo" data-title="Contact Info">Contact Info</button>
+      <button class="admin-nav-item" data-view="music" data-title="Background Music">Background Music</button>
+      <a href="/index.html?edit=1" class="admin-nav-item" id="editWebsiteBtn" style="text-decoration:none;display:block;">✏️ Edit Website</a>
+    </nav>
+    <div style="margin-top:auto;padding-top:24px;border-top:1px solid var(--line);">
+      <a href="/index.html" class="btn btn-outline btn-sm btn-block" style="margin-bottom:10px;">View Store</a>
+      <button id="logoutBtn" class="btn btn-danger btn-sm btn-block">Log Out</button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <header class="admin-topbar">
+      <h1 id="adminViewTitle">Products</h1>
+      <span class="admin-welcome">Signed in as <strong>admin</strong></span>
+    </header>
+
+    <!-- ORDERS VIEW -->
+    <section class="admin-view" id="view-orders" style="display:none;">
+      <div class="admin-toolbar">
+        <select id="orderStatusFilter" class="admin-search" style="max-width:220px;flex:none;">
+          <option value="all">All statuses</option>
+          <option value="pending">Chờ xác nhận</option>
+          <option value="confirmed">Đã xác nhận</option>
+          <option value="shipped">Đang giao</option>
+          <option value="completed">Hoàn tất</option>
+          <option value="cancelled">Đã hủy</option>
+        </select>
+        <span class="admin-count" id="orderCount">0 orders</span>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="ordersTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PRODUCTS VIEW -->
+    <section class="admin-view" id="view-products">
+      <div class="admin-toolbar">
+        <input type="text" id="adminSearch" placeholder="Search products..." class="admin-search">
+        <span class="admin-count" id="productCount">0 products</span>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Image</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="productTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ADD / EDIT VIEW -->
+    <section class="admin-view" id="view-add" style="display:none;">
+      <div id="productFormAlert" class="alert"></div>
+      <form id="productForm" class="admin-form" enctype="multipart/form-data">
+        <input type="hidden" id="productId" name="id">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label>Product Name *</label>
+            <input type="text" name="name" id="f_name" required>
+          </div>
+          <div class="field">
+            <label>Category *</label>
+            <select name="category" id="f_category" required></select>
+          </div>
+          <div class="field">
+            <label>Brand</label>
+            <input type="text" name="brand" id="f_brand" placeholder="e.g. Good Smile Company">
+          </div>
+          <div class="field">
+            <label>Series</label>
+            <input type="text" name="series" id="f_series" placeholder="e.g. Vocaloid">
+          </div>
+          <div class="field">
+            <label>Character</label>
+            <input type="text" name="character" id="f_character" placeholder="e.g. Hatsune Miku">
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select name="status" id="f_status">
+              <option value="in-stock">In Stock</option>
+              <option value="pre-order">Pre-order</option>
+              <option value="out-of-stock">Out of Stock</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Price (₫) *</label>
+            <input type="number" name="price" id="f_price" min="0" required>
+          </div>
+          <div class="field">
+            <label>Original Price (₫, optional — for discount display)</label>
+            <input type="number" name="oldPrice" id="f_oldPrice" min="0">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label><input type="checkbox" name="featured" id="f_featured" value="true" style="width:auto;margin-right:8px;">Show in Featured section on homepage</label>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Description</label>
+            <textarea name="description" id="f_description" rows="4"></textarea>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Product Images (up to 5, first image is the cover)</label>
+            <input type="file" name="images" id="f_images" accept="image/*" multiple>
+            <div id="existingImages" class="existing-images"></div>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Product Description Images (up to 5)</label>
+            <p class="admin-help" style="margin:0 0 8px;">These images are displayed in the description section of the product page.</p>
+            <input type="file" name="descriptionImages" id="f_descriptionImages" accept="image/*" multiple>
+            <div id="existingDescriptionImages" class="existing-images"></div>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="saveProductBtn">Save Product</button>
+          <button type="button" class="btn btn-outline" id="cancelEditBtn" style="display:none;">Cancel Edit</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- BULK IMPORT VIEW -->
+    <section class="admin-view" id="view-bulk" style="display:none;">
+      <p class="admin-help">Paste a JSON array of products (no images) to import your catalog in bulk. Each item can include: name, category, brand, series, character, price, oldPrice, status, description, featured.</p>
+      <div id="bulkAlert" class="alert"></div>
+      <textarea id="bulkJson" rows="14" class="bulk-textarea" placeholder='[
+  {
+    "name": "Nendoroid Example",
+    "category": "nendoroid",
+    "brand": "Good Smile Company",
+    "series": "Example Series",
+    "character": "Example Character",
+    "price": 890000,
+    "oldPrice": 990000,
+    "status": "in-stock",
+    "description": "Sample product",
+    "featured": true
+  }
+]'></textarea>
+      <button id="bulkImportBtn" class="btn btn-gold" style="margin-top:14px;">Import Products</button>
+    </section>
+
+    <!-- FLASH SALE VIEW -->
+    <section class="admin-view" id="view-flashsale" style="display:none;">
+      <p class="admin-help">Set up the homepage Flash Sale banner: pick a title, a start/end date-time window (the promotion duration), and which products to feature. The countdown and section automatically hide once the end time passes.</p>
+      <div id="flashSaleAlert" class="alert"></div>
+      <form id="flashSaleForm" class="admin-form">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label>Banner Title</label>
+            <input type="text" id="fs_title" placeholder="e.g. FLASH SALE">
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="fs_enabled" style="width:auto;margin-right:8px;">Enable Flash Sale on homepage</label>
+          </div>
+          <div class="field">
+            <label>Starts At</label>
+            <input type="datetime-local" id="fs_startAt">
+          </div>
+          <div class="field">
+            <label>Ends At</label>
+            <input type="datetime-local" id="fs_endAt">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Select Products to Feature</label>
+            <input type="text" id="fs_productSearch" placeholder="Search products…" class="admin-search" style="margin-bottom:10px;max-width:320px;">
+            <div id="fs_productList" class="fs-product-list"></div>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="saveFlashSaleBtn">Save Flash Sale</button>
+          <span id="fs_selectedCount" class="admin-count" style="align-self:center;"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- BLOG / NEWS VIEW -->
+    <section class="admin-view" id="view-blog" style="display:none;">
+      <div id="blogAlert" class="alert"></div>
+      <form id="blogForm" class="admin-form" enctype="multipart/form-data">
+        <input type="hidden" id="blogId">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label>Title *</label>
+            <input type="text" id="bg_title" required>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <input type="text" id="bg_category" placeholder="e.g. News, Customer Care" value="News">
+          </div>
+          <div class="field">
+            <label>URL Slug (optional — auto-generated from title)</label>
+            <input type="text" id="bg_slug" placeholder="e.g. new-figures-arriving-this-week">
+          </div>
+          <div class="field">
+            <label>Author</label>
+            <input type="text" id="bg_author" value="wfigure">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Excerpt (short summary shown on cards)</label>
+            <textarea id="bg_excerpt" rows="2"></textarea>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Content *</label>
+            <textarea id="bg_content" rows="10" required placeholder="Write the full post here. Leave a blank line between paragraphs."></textarea>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Cover Image</label>
+            <input type="file" id="bg_coverImage" accept="image/*">
+            <div id="bg_existingCover" class="existing-images"></div>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="saveBlogBtn">Publish Post</button>
+          <button type="button" class="btn btn-outline" id="cancelBlogEditBtn" style="display:none;">Cancel Edit</button>
+        </div>
+      </form>
+
+      <div class="admin-table-wrap" style="margin-top:24px;">
+        <table class="admin-table">
+          <thead><tr><th>Cover</th><th>Title</th><th>Category</th><th>Published</th><th>Actions</th></tr></thead>
+          <tbody id="blogTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MESSAGES VIEW -->
+    <section class="admin-view" id="view-messages" style="display:none;">
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Message</th><th>Date</th></tr></thead>
+          <tbody id="messagesTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <!-- CONTACT INFO VIEW -->
+    <section class="admin-view" id="view-contactinfo" style="display:none;">
+      <p class="admin-help">These entries appear in the "Contact" column of the site footer on every page (phone, Zalo, email, shop address, or anything else you want to list).</p>
+      <div id="contactInfoAlert" class="alert"></div>
+      <form id="contactInfoForm" class="admin-form">
+        <input type="hidden" id="ci_id">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label>Type *</label>
+            <select id="ci_type" required>
+              <option value="phone">Phone</option>
+              <option value="zalo">Zalo</option>
+              <option value="email">Email</option>
+              <option value="address">Store Address / Location</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Label</label>
+            <input type="text" id="ci_label" placeholder="e.g. Hotline, Zalo, Email, Store Address">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label id="ci_value_label">Value * (phone number, Zalo number/link, email address, etc.)</label>
+            <input type="text" id="ci_value" required placeholder="e.g. 0365244436">
+          </div>
+          <div class="field" id="ci_map_field" style="grid-column:1/-1; display:none;">
+            <label>Google Maps link (optional)</label>
+            <input type="text" id="ci_map" placeholder="Paste a Google Maps share/embed link, or leave blank to auto-generate from the address">
+            <p class="admin-help" style="margin-top:6px;">Leave blank and the Contact page map will be generated automatically from the address above. To pin an exact location, open Google Maps, find the shop, click Share → Embed a map, and paste the link here.</p>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="saveContactInfoBtn">Add Contact Info</button>
+          <button type="button" class="btn btn-outline" id="cancelContactInfoEditBtn" style="display:none;">Cancel Edit</button>
+        </div>
+      </form>
+
+      <div class="admin-table-wrap" style="margin-top:24px;">
+        <table class="admin-table">
+          <thead><tr><th>Type</th><th>Label</th><th>Value</th><th>Actions</th></tr></thead>
+          <tbody id="contactInfoTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- BACKGROUND MUSIC VIEW -->
+    <section class="admin-view" id="view-music" style="display:none;">
+      <p class="admin-help">Upload a track to play as background music on the storefront. Visitors always get a visible mute/play button so they can control it themselves — most browsers won't allow sound to autoplay until a visitor has interacted with the page anyway.</p>
+      <div id="musicAlert" class="alert"></div>
+
+      <div class="field" style="max-width:480px;margin-bottom:20px;">
+        <label>Current Track</label>
+        <div id="currentTrackInfo" style="color:var(--text-dim);font-size:0.88rem;margin-bottom:8px;">No track uploaded yet.</div>
+        <audio id="musicPreviewPlayer" controls style="width:100%;display:none;"></audio>
+      </div>
+
+      <form id="musicUploadForm" class="admin-form" enctype="multipart/form-data" style="margin-bottom:28px;">
+        <div class="admin-form-grid">
+          <div class="field" style="grid-column:1/-1;">
+            <label>Upload / Replace Track (mp3, wav, ogg, m4a — max 20MB)</label>
+            <input type="file" name="track" id="f_musicTrack" accept="audio/*" required>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="uploadMusicBtn">Upload Track</button>
+          <button type="button" class="btn btn-danger" id="removeMusicBtn">Remove Track</button>
+        </div>
+      </form>
+
+      <form id="musicSettingsForm" class="admin-form">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label><input type="checkbox" id="m_enabled" style="width:auto;margin-right:8px;">Enable background music on the site</label>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="m_autoplay" style="width:auto;margin-right:8px;">Try to autoplay (visitors can still mute)</label>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="m_loop" style="width:auto;margin-right:8px;">Loop track</label>
+          </div>
+          <div class="field">
+            <label>Default Volume: <span id="m_volumeLabel">50%</span></label>
+            <input type="range" id="m_volume" min="0" max="100" value="50" style="width:100%;">
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="saveMusicSettingsBtn">Save Settings</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div id="orderModalRoot"></div>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/admin.js"></script>
+</body>
+</html>
