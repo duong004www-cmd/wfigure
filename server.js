@@ -5,6 +5,8 @@
 // server.
 try { require('dotenv').config(); } catch (err) { /* dotenv not installed — fine, just skip */ }
 
+console.log("DATABASE_URL =", process.env.DATABASE_URL);
+
 const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
@@ -12,7 +14,8 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
-
+const db = require("./db");
+const store = require('./lib/store');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -38,20 +41,17 @@ const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 const facebookEnabled = !!(FACEBOOK_APP_ID && FACEBOOK_APP_SECRET);
 
 // ---------- Paths ----------
-const DATA_DIR = path.join(__dirname, 'data');
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
-const CONTACT_INFO_FILE = path.join(DATA_DIR, 'contact-info.json');
-const CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const SITE_CONTENT_FILE = path.join(DATA_DIR, 'site-content.json');
-const SITE_CONTENT_DRAFT_FILE = path.join(DATA_DIR, 'site-content-draft.json');
-const SITE_CONTENT_VERSIONS_FILE = path.join(DATA_DIR, 'site-content-versions.json');
-const SITE_MUSIC_FILE = path.join(DATA_DIR, 'site-music.json');
-const FLASH_SALE_FILE = path.join(DATA_DIR, 'flash-sale.json');
-const BLOG_POSTS_FILE = path.join(DATA_DIR, 'blog-posts.json');
-const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+// IMPORTANT (Render free tier bug fix):
+// Render's free/standard web services have an EPHEMERAL filesystem — every
+// restart / redeploy / spin-down wipes any files written at runtime. This
+// app now persists all data (products, orders, theme content, etc.) in
+// PostgreSQL via lib/store.js instead of JSON files on disk, so nothing is
+// lost on restart/redeploy. Only uploaded media files (images/audio) still
+// live on disk — see UPLOADS_DIR below, which can be pointed at a Render
+// "Persistent Disk" the same way as before.
+const UPLOADS_DIR = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, 'public', 'uploads');
 const MAX_VERSIONS = 30;
 
 // ---------- Hardcoded admin account ----------
@@ -71,29 +71,8 @@ const STORE_INFO = {
 };
 
 // ---------- Helpers ----------
-function readJSON(file) {
-  try {
-    const raw = fs.readFileSync(file, 'utf-8');
-    return JSON.parse(raw || '[]');
-  } catch (err) {
-    return [];
-  }
-}
-
-function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-// Like readJSON but lets the caller supply a default value for objects
-// (readJSON always falls back to []), used by the site-content store.
-function readJSONWithDefault(file, defaultValue) {
-  try {
-    const raw = fs.readFileSync(file, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    return defaultValue;
-  }
-}
+// (JSON file read/write helpers removed — all persistent data now goes
+// through lib/store.js, which talks to PostgreSQL.)
 
 function requireAdmin(req, res, next) {
   if (req.session && req.session.user && req.session.user.role === 'admin') {
@@ -147,12 +126,12 @@ const uploadAudio = multer({
 // =====================================================
 
 // Register a normal customer account
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { name, email, password, phone } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email and password are required.' });
   }
-  const users = readJSON(USERS_FILE);
+  const users = await store.getUsers();
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
     return res.status(409).json({ error: 'An account with this email already exists.' });
   }
@@ -166,12 +145,12 @@ app.post('/api/register', (req, res) => {
     createdAt: new Date().toISOString()
   };
   users.push(newUser);
-  writeJSON(USERS_FILE, users);
+  await store.saveUsers(users);
   return res.json({ message: 'Account created successfully. You can now log in.' });
 });
 
 // Login for both admin and normal customers
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username/email and password are required.' });
@@ -184,7 +163,7 @@ app.post('/api/login', (req, res) => {
   }
 
   // Normal customer check (by email)
-  const users = readJSON(USERS_FILE);
+  const users = await store.getUsers();
   const user = users.find(u => u.email.toLowerCase() === username.toLowerCase());
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Invalid username/email or password.' });
@@ -243,7 +222,7 @@ app.post('/api/auth/google', async (req, res) => {
   }
 
   const email = payload.email.toLowerCase();
-  const users = readJSON(USERS_FILE);
+  const users = await store.getUsers();
   let user = users.find(u => u.email.toLowerCase() === email);
 
   if (!user) {
@@ -262,13 +241,13 @@ app.post('/api/auth/google', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     users.push(user);
-    writeJSON(USERS_FILE, users);
+    await store.saveUsers(users);
   } else if (!user.googleId) {
     // An email/password account with the same email is signing in with
     // Google for the first time — link them instead of creating a duplicate.
     user.googleId = payload.sub;
     if (!user.provider) user.provider = 'google';
-    writeJSON(USERS_FILE, users);
+    await store.saveUsers(users);
   }
 
   req.session.user = { id: user.id, name: user.name, email: user.email, role: 'customer' };
@@ -320,7 +299,7 @@ app.post('/api/auth/facebook', async (req, res) => {
   }
 
   const email = profile.email.toLowerCase();
-  const users = readJSON(USERS_FILE);
+  const users = await store.getUsers();
   let user = users.find(u => u.email.toLowerCase() === email);
 
   if (!user) {
@@ -339,14 +318,14 @@ app.post('/api/auth/facebook', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     users.push(user);
-    writeJSON(USERS_FILE, users);
+    await store.saveUsers(users);
   } else if (!user.facebookId) {
     // An existing account (email/password or Google) with the same email
     // is signing in with Facebook for the first time — link them instead
     // of creating a duplicate.
     user.facebookId = profile.id;
     if (!user.provider) user.provider = 'facebook';
-    writeJSON(USERS_FILE, users);
+    await store.saveUsers(users);
   }
 
   req.session.user = { id: user.id, name: user.name, email: user.email, role: 'customer' };
@@ -356,8 +335,8 @@ app.post('/api/auth/facebook', async (req, res) => {
 // =====================================================
 //  CATEGORY / MENU ROUTES
 // =====================================================
-app.get('/api/categories', (req, res) => {
-  const categories = readJSON(CATEGORIES_FILE);
+app.get('/api/categories', async (req, res) => {
+  const categories = await store.getCategories();
   res.json(categories);
 });
 
@@ -366,8 +345,8 @@ app.get('/api/categories', (req, res) => {
 // =====================================================
 
 // List / filter / search products
-app.get('/api/products', (req, res) => {
-  let products = readJSON(PRODUCTS_FILE);
+app.get('/api/products', async (req, res) => {
+  let products = await store.getProducts();
   const { category, brand, series, character, status, q, sort, featured, limit } = req.query;
 
   // Multi-value support: category/brand/series/character/status may be a
@@ -419,8 +398,8 @@ app.get('/api/products', (req, res) => {
 });
 
 // Get single product
-app.get('/api/products/:id', (req, res) => {
-  const products = readJSON(PRODUCTS_FILE);
+app.get('/api/products/:id', async (req, res) => {
+  const products = await store.getProducts();
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found.' });
   res.json(product);
@@ -444,12 +423,12 @@ function normalizeDescriptionImages(product) {
 }
 
 // Create product (admin only) — supports up to 5 images + up to 5 description images
-app.post('/api/products', requireAdmin, productUploadFields, (req, res) => {
+app.post('/api/products', requireAdmin, productUploadFields, async (req, res) => {
   const { name, category, brand, series, character, price, oldPrice, status, description, featured } = req.body;
   if (!name || !category || !price) {
     return res.status(400).json({ error: 'Name, category and price are required.' });
   }
-  const products = readJSON(PRODUCTS_FILE);
+  const products = await store.getProducts();
   const images = (req.files?.images || []).map(f => `/uploads/${f.filename}`);
   const descriptionImages = (req.files?.descriptionImages || []).map(f => `/uploads/${f.filename}`);
 
@@ -470,15 +449,15 @@ app.post('/api/products', requireAdmin, productUploadFields, (req, res) => {
     createdAt: new Date().toISOString()
   };
   products.unshift(newProduct);
-  writeJSON(PRODUCTS_FILE, products);
+  await store.saveProducts(products);
   res.json({ message: 'Product created successfully.', product: newProduct });
 });
 
 // Update product (admin only) — new gallery images get appended, and
 // description images work the same way (append new ones, remove any
 // explicitly deselected in the admin form).
-app.put('/api/products/:id', requireAdmin, productUploadFields, (req, res) => {
-  const products = readJSON(PRODUCTS_FILE);
+app.put('/api/products/:id', requireAdmin, productUploadFields, async (req, res) => {
+  const products = await store.getProducts();
   const idx = products.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Product not found.' });
 
@@ -524,13 +503,13 @@ app.put('/api/products/:id', requireAdmin, productUploadFields, (req, res) => {
   };
   delete products[idx].descriptionImage;
 
-  writeJSON(PRODUCTS_FILE, products);
+  await store.saveProducts(products);
   res.json({ message: 'Product updated successfully.', product: products[idx] });
 });
 
 // Delete product (admin only)
-app.delete('/api/products/:id', requireAdmin, (req, res) => {
-  let products = readJSON(PRODUCTS_FILE);
+app.delete('/api/products/:id', requireAdmin, async (req, res) => {
+  let products = await store.getProducts();
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found.' });
 
@@ -549,17 +528,17 @@ app.delete('/api/products/:id', requireAdmin, (req, res) => {
   });
 
   products = products.filter(p => p.id !== req.params.id);
-  writeJSON(PRODUCTS_FILE, products);
+  await store.saveProducts(products);
   res.json({ message: 'Product deleted successfully.' });
 });
 
 // Bulk catalog upload (admin only) — accepts a JSON array of products (no images)
-app.post('/api/products/bulk', requireAdmin, (req, res) => {
+app.post('/api/products/bulk', requireAdmin, async (req, res) => {
   const incoming = req.body;
   if (!Array.isArray(incoming)) {
     return res.status(400).json({ error: 'Expected a JSON array of products.' });
   }
-  const products = readJSON(PRODUCTS_FILE);
+  const products = await store.getProducts();
   const created = incoming.map(item => ({
     id: uuidv4(),
     name: item.name || 'Unnamed product',
@@ -578,7 +557,7 @@ app.post('/api/products/bulk', requireAdmin, (req, res) => {
     featured: !!item.featured,
     createdAt: new Date().toISOString()
   }));
-  writeJSON(PRODUCTS_FILE, [...created, ...products]);
+  await store.saveProducts([...created, ...products]);
   res.json({ message: `${created.length} products imported successfully.` });
 });
 
@@ -590,21 +569,17 @@ app.post('/api/products/bulk', requireAdmin, (req, res) => {
 //  Public GET resolves those IDs into full product objects (in the order
 //  the admin picked them) so the homepage doesn't need a second request.
 // =====================================================
-function defaultFlashSale() {
-  return { enabled: false, title: 'FLASH SALE', startAt: null, endAt: null, productIds: [] };
-}
-
-app.get('/api/flash-sale', (req, res) => {
-  const sale = readJSONWithDefault(FLASH_SALE_FILE, defaultFlashSale());
-  const products = readJSON(PRODUCTS_FILE);
+app.get('/api/flash-sale', async (req, res) => {
+  const sale = await store.getFlashSale();
+  const products = await store.getProducts();
   const byId = new Map(products.map(p => [p.id, p]));
   const resolved = (sale.productIds || []).map(id => byId.get(id)).filter(Boolean);
   res.json({ ...sale, products: resolved });
 });
 
-app.put('/api/flash-sale', requireAdmin, (req, res) => {
+app.put('/api/flash-sale', requireAdmin, async (req, res) => {
   const body = req.body || {};
-  const current = readJSONWithDefault(FLASH_SALE_FILE, defaultFlashSale());
+  const current = await store.getFlashSale();
   const updated = {
     enabled: typeof body.enabled === 'boolean' ? body.enabled : current.enabled,
     title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : current.title,
@@ -613,9 +588,9 @@ app.put('/api/flash-sale', requireAdmin, (req, res) => {
     productIds: Array.isArray(body.productIds) ? body.productIds.filter(id => typeof id === 'string') : current.productIds,
     updatedAt: new Date().toISOString()
   };
-  writeJSON(FLASH_SALE_FILE, updated);
+  await store.saveFlashSale(updated);
 
-  const products = readJSON(PRODUCTS_FILE);
+  const products = await store.getProducts();
   const byId = new Map(products.map(p => [p.id, p]));
   const resolved = updated.productIds.map(id => byId.get(id)).filter(Boolean);
   res.json({ message: 'Flash sale settings saved.', ...updated, products: resolved });
@@ -649,8 +624,8 @@ function uniqueSlug(base, posts, excludeId) {
 
 // Public: list posts, newest first. Optional filters: category, q (search
 // in title/excerpt), limit.
-app.get('/api/blog', (req, res) => {
-  let posts = readJSON(BLOG_POSTS_FILE);
+app.get('/api/blog', async (req, res) => {
+  let posts = await store.getBlogPosts();
   const { category, q, limit } = req.query;
   if (category && category !== 'all') {
     posts = posts.filter(p => (p.category || '').toLowerCase() === String(category).toLowerCase());
@@ -669,25 +644,25 @@ app.get('/api/blog', (req, res) => {
 // Admin: list posts including ones not yet used anywhere else — same data,
 // kept as a distinct route so the admin dashboard never has to guess about
 // query-filtering quirks above.
-app.get('/api/blog/all', requireAdmin, (req, res) => {
-  const posts = readJSON(BLOG_POSTS_FILE).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+app.get('/api/blog/all', requireAdmin, async (req, res) => {
+  const posts = (await store.getBlogPosts()).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   res.json(posts);
 });
 
 // Public: single post by slug (what /blog-post.html?slug=... reads).
-app.get('/api/blog/:slug', (req, res) => {
-  const posts = readJSON(BLOG_POSTS_FILE);
+app.get('/api/blog/:slug', async (req, res) => {
+  const posts = await store.getBlogPosts();
   const post = posts.find(p => p.slug === req.params.slug);
   if (!post) return res.status(404).json({ error: 'Post not found.' });
   res.json(post);
 });
 
-app.post('/api/blog', requireAdmin, upload.single('coverImage'), (req, res) => {
+app.post('/api/blog', requireAdmin, upload.single('coverImage'), async (req, res) => {
   const { title, excerpt, content, category, author } = req.body;
   if (!title || !content) {
     return res.status(400).json({ error: 'Title and content are required.' });
   }
-  const posts = readJSON(BLOG_POSTS_FILE);
+  const posts = await store.getBlogPosts();
   const newPost = {
     id: uuidv4(),
     title,
@@ -701,12 +676,12 @@ app.post('/api/blog', requireAdmin, upload.single('coverImage'), (req, res) => {
     createdAt: new Date().toISOString()
   };
   posts.unshift(newPost);
-  writeJSON(BLOG_POSTS_FILE, posts);
+  await store.saveBlogPosts(posts);
   res.json({ message: 'Post published successfully.', post: newPost });
 });
 
-app.put('/api/blog/:id', requireAdmin, upload.single('coverImage'), (req, res) => {
-  const posts = readJSON(BLOG_POSTS_FILE);
+app.put('/api/blog/:id', requireAdmin, upload.single('coverImage'), async (req, res) => {
+  const posts = await store.getBlogPosts();
   const idx = posts.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Post not found.' });
 
@@ -737,12 +712,12 @@ app.put('/api/blog/:id', requireAdmin, upload.single('coverImage'), (req, res) =
     author: body.author !== undefined ? body.author : existing.author,
     coverImage
   };
-  writeJSON(BLOG_POSTS_FILE, posts);
+  await store.saveBlogPosts(posts);
   res.json({ message: 'Post updated successfully.', post: posts[idx] });
 });
 
-app.delete('/api/blog/:id', requireAdmin, (req, res) => {
-  let posts = readJSON(BLOG_POSTS_FILE);
+app.delete('/api/blog/:id', requireAdmin, async (req, res) => {
+  let posts = await store.getBlogPosts();
   const post = posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found.' });
   if (post.coverImage) {
@@ -750,31 +725,31 @@ app.delete('/api/blog/:id', requireAdmin, (req, res) => {
     if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ } }
   }
   posts = posts.filter(p => p.id !== req.params.id);
-  writeJSON(BLOG_POSTS_FILE, posts);
+  await store.saveBlogPosts(posts);
   res.json({ message: 'Post deleted successfully.' });
 });
 
 // =====================================================
 //  CONTACT ROUTE
 // =====================================================
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', async (req, res) => {
   const { name, email, phone, message } = req.body;
   if (!name || !email || !message) {
     return res.status(400).json({ error: 'Name, email and message are required.' });
   }
-  const contacts = readJSON(CONTACTS_FILE);
+  const contacts = await store.getContacts();
   contacts.push({
     id: uuidv4(),
     name, email, phone: phone || '', message,
     createdAt: new Date().toISOString()
   });
-  writeJSON(CONTACTS_FILE, contacts);
+  await store.saveContacts(contacts);
   res.json({ message: 'Thank you! Your message has been sent. Our team will contact you soon.' });
 });
 
 // Admin: view contact messages
-app.get('/api/contact', requireAdmin, (req, res) => {
-  res.json(readJSON(CONTACTS_FILE));
+app.get('/api/contact', requireAdmin, async (req, res) => {
+  res.json(await store.getContacts());
 });
 
 // =====================================================
@@ -816,8 +791,8 @@ function normalizeVN(str) {
 // so the assistant can recognize category/brand/series/character names the
 // customer types loosely ("có gundam không", "co ban plushie khong") and use
 // them both for category-browsing answers and as product-search synonyms.
-function getCategorySynonyms() {
-  const menu = (readJSON(CATEGORIES_FILE).menu) || [];
+async function getCategorySynonyms() {
+  const menu = (await store.getCategories()).menu || [];
   const entries = [];
   menu.forEach(section => {
     if (section.page) {
@@ -832,8 +807,8 @@ function getCategorySynonyms() {
   return entries;
 }
 
-function getLiveContactInfo() {
-  const entries = readJSON(CONTACT_INFO_FILE);
+async function getLiveContactInfo() {
+  const entries = await store.getContactInfo();
   const byType = (t) => (entries.find(e => e.type === t) || {}).value;
   const addressEntry = entries.find(e => e.type === 'address');
   return {
@@ -914,8 +889,8 @@ const SEARCH_STOPWORDS = new Set([
   'the nao', 'ne', 'a', 'nhi', 'ah', 'oke', 'ok'
 ]);
 
-function searchProducts(query, limit = 4) {
-  const products = readJSON(PRODUCTS_FILE);
+async function searchProducts(query, limit = 4) {
+  const products = await store.getProducts();
   const budget = parseBudget(query);
   const normQuery = normalizeVN(query);
 
@@ -989,8 +964,8 @@ function extractOrderCode(text) {
   return m ? `WF-${m[1]}` : null;
 }
 
-function findOrderByCode(code) {
-  const orders = readJSON(ORDERS_FILE);
+async function findOrderByCode(code) {
+  const orders = await store.getOrders();
   return orders.find(o => (o.code || '').toUpperCase() === code) || null;
 }
 
@@ -1000,8 +975,8 @@ function findOrderByCode(code) {
 // message, (3) cover a much wider range of intents (payment, promo codes,
 // order tracking, category browsing, small talk, "what can you do"), and
 // (4) fall back to a helpful menu instead of a dead end when nothing matches.
-function ruleBasedReply(message, history) {
-  const info = getLiveContactInfo();
+async function ruleBasedReply(message, history) {
+  const info = await getLiveContactInfo();
   const m = ` ${normalizeVN(message)} `;
   // Whole-word/phrase matching (padded with spaces above) — plain substring
   // matching caused false positives like "hi" matching inside "thích",
@@ -1068,7 +1043,7 @@ function ruleBasedReply(message, history) {
   // ---- order tracking ----
   const orderCode = extractOrderCode(message);
   if (orderCode) {
-    const order = findOrderByCode(orderCode);
+    const order = await findOrderByCode(orderCode);
     if (order) {
       const statusVi = ORDER_STATUS_LABELS_VI[order.status] || order.status;
       return { reply: `Đơn hàng ${order.code} hiện đang: ${statusVi}. Nếu cần hỗ trợ thêm, gọi hotline ${info.hotline} nhé.` };
@@ -1080,7 +1055,7 @@ function ruleBasedReply(message, history) {
   }
 
   // ---- category browsing ("có bán gundam không", "co plushie khong") ----
-  const catalogSynonyms = getCategorySynonyms();
+  const catalogSynonyms = await getCategorySynonyms();
   const matchedCategory = catalogSynonyms.find(c => c.norm && m.includes(c.norm));
   if (matchedCategory && hasAny(['co ban', 'co khong', 'co ko', 'ban gi', 'loai nao', 'nhung loai'])) {
     return { reply: `Có nhé! Bạn xem mục "${matchedCategory.label}"${matchedCategory.page ? ` tại ${matchedCategory.page}` : ''}, hoặc cho shop biết thêm nhân vật/mức giá để mình gợi ý sản phẩm cụ thể luôn.` };
@@ -1088,7 +1063,7 @@ function ruleBasedReply(message, history) {
 
   // ---- stock check for a specific item ----
   if (hasAny(['con hang', 'con ko', 'con khong', 'het hang chua'])) {
-    const products = searchProducts(message);
+    const products = await searchProducts(message);
     if (products.length) {
       const list = products.map(p => `• ${p.name} — ${p.status === 'out-of-stock' ? 'hiện đang hết hàng' : p.status === 'pre-order' ? 'nhận pre-order' : 'còn hàng, sẵn sàng giao'}`).join('\n');
       return { reply: `Shop kiểm tra giúp bạn nhé:\n\n${list}`, products };
@@ -1100,10 +1075,10 @@ function ruleBasedReply(message, history) {
   // Search the current message first; if that's weak/empty, progressively
   // widen using recent user turns so multi-message context isn't lost, e.g.
   // "mình thích Genshin Impact" -> "tầm 500k thì sao" -> "có Nendoroid không".
-  let products = searchProducts(message);
+  let products = await searchProducts(message);
   if (!products.length) {
     for (let i = pastUser.length - 1; i >= 0 && i >= pastUser.length - 3; i--) {
-      products = searchProducts(`${pastUser[i]} ${message}`);
+      products = await searchProducts(`${pastUser[i]} ${message}`);
       if (products.length) break;
     }
   }
@@ -1125,8 +1100,8 @@ function ruleBasedReply(message, history) {
 // AI-powered reply via the Anthropic API (used only when ANTHROPIC_API_KEY
 // is configured). Falls back to the rule-based assistant on any error.
 async function aiReply(message, history) {
-  const products = readJSON(PRODUCTS_FILE);
-  const info = getLiveContactInfo();
+  const products = await store.getProducts();
+  const info = await getLiveContactInfo();
 
   const catalogForPrompt = products.map(p => ({
     id: p.id,
@@ -1189,7 +1164,7 @@ ${JSON.stringify(catalogForPrompt)}`;
 
   // Also run the keyword search so the UI can show clickable product
   // cards under the AI's free-form text reply (best of both worlds).
-  const matchedProducts = searchProducts(message);
+  const matchedProducts = await searchProducts(message);
   return { reply: text, products: matchedProducts };
 }
 
@@ -1209,7 +1184,7 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
-  res.json(ruleBasedReply(String(message), history));
+  res.json(await ruleBasedReply(String(message), history));
 });
 
 // =====================================================
@@ -1246,7 +1221,7 @@ app.post('/api/orders', async (req, res) => {
   // Recompute each line item against the current catalog where possible,
   // falling back to the submitted price if the product can't be found
   // (e.g. removed from catalog after being added to cart).
-  const catalog = readJSON(PRODUCTS_FILE);
+  const catalog = await store.getProducts();
   const resolvedItems = items.map(item => {
     const product = catalog.find(p => p.id === item.id);
     const price = product ? product.price : Number(item.price) || 0;
@@ -1308,47 +1283,47 @@ app.post('/api/orders', async (req, res) => {
     total
   };
 
-  const orders = readJSON(ORDERS_FILE);
+  const orders = await store.getOrders();
   orders.unshift(order);
-  writeJSON(ORDERS_FILE, orders);
+  await store.saveOrders(orders);
 
   res.json({ message: 'Đặt hàng thành công.', order });
 });
 
 // Admin: list all orders (most recent first)
-app.get('/api/orders', requireAdmin, (req, res) => {
-  res.json(readJSON(ORDERS_FILE));
+app.get('/api/orders', requireAdmin, async (req, res) => {
+  res.json(await store.getOrders());
 });
 
 // Admin: count of orders not yet opened in the dashboard — polled by the
 // sidebar to show a "new orders" badge, similar to a notification bell.
-app.get('/api/orders/unseen-count', requireAdmin, (req, res) => {
-  const orders = readJSON(ORDERS_FILE);
+app.get('/api/orders/unseen-count', requireAdmin, async (req, res) => {
+  const orders = await store.getOrders();
   res.json({ count: orders.filter(o => !o.seenByAdmin).length });
 });
 
 // Admin: mark a single order as seen (called when the admin opens its detail view)
-app.put('/api/orders/:id/seen', requireAdmin, (req, res) => {
-  const orders = readJSON(ORDERS_FILE);
+app.put('/api/orders/:id/seen', requireAdmin, async (req, res) => {
+  const orders = await store.getOrders();
   const idx = orders.findIndex(o => o.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
   orders[idx].seenByAdmin = true;
-  writeJSON(ORDERS_FILE, orders);
+  await store.saveOrders(orders);
   res.json({ message: 'OK', order: orders[idx] });
 });
 
 // Admin: update order status
-app.put('/api/orders/:id/status', requireAdmin, (req, res) => {
+app.put('/api/orders/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body || {};
   const validStatuses = ['pending', 'confirmed', 'shipped', 'completed', 'cancelled'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: 'Trạng thái không hợp lệ.' });
   }
-  const orders = readJSON(ORDERS_FILE);
+  const orders = await store.getOrders();
   const idx = orders.findIndex(o => o.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
   orders[idx].status = status;
-  writeJSON(ORDERS_FILE, orders);
+  await store.saveOrders(orders);
   res.json({ message: 'Cập nhật trạng thái thành công.', order: orders[idx] });
 });
 
@@ -1360,17 +1335,17 @@ app.put('/api/orders/:id/status', requireAdmin, (req, res) => {
 // =====================================================
 const CONTACT_INFO_TYPES = ['phone', 'zalo', 'email', 'address', 'other'];
 
-app.get('/api/contact-info', (req, res) => {
-  res.json(readJSON(CONTACT_INFO_FILE));
+app.get('/api/contact-info', async (req, res) => {
+  res.json(await store.getContactInfo());
 });
 
-app.post('/api/contact-info', requireAdmin, (req, res) => {
+app.post('/api/contact-info', requireAdmin, async (req, res) => {
   const { type, label, value, mapUrl } = req.body || {};
   if (!value || !String(value).trim()) {
     return res.status(400).json({ error: 'Value is required.' });
   }
   const resolvedType = CONTACT_INFO_TYPES.includes(type) ? type : 'other';
-  const entries = readJSON(CONTACT_INFO_FILE);
+  const entries = await store.getContactInfo();
   const entry = {
     id: uuidv4(),
     type: resolvedType,
@@ -1384,12 +1359,12 @@ app.post('/api/contact-info', requireAdmin, (req, res) => {
     entry.mapUrl = (mapUrl && String(mapUrl).trim()) || null;
   }
   entries.push(entry);
-  writeJSON(CONTACT_INFO_FILE, entries);
+  await store.saveContactInfo(entries);
   res.json({ message: 'Contact info added.', entry });
 });
 
-app.put('/api/contact-info/:id', requireAdmin, (req, res) => {
-  const entries = readJSON(CONTACT_INFO_FILE);
+app.put('/api/contact-info/:id', requireAdmin, async (req, res) => {
+  const entries = await store.getContactInfo();
   const idx = entries.findIndex(e => e.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Contact info not found.' });
   const { type, label, value, mapUrl } = req.body || {};
@@ -1408,15 +1383,15 @@ app.put('/api/contact-info/:id', requireAdmin, (req, res) => {
   } else {
     delete entries[idx].mapUrl;
   }
-  writeJSON(CONTACT_INFO_FILE, entries);
+  await store.saveContactInfo(entries);
   res.json({ message: 'Contact info updated.', entry: entries[idx] });
 });
 
-app.delete('/api/contact-info/:id', requireAdmin, (req, res) => {
-  const entries = readJSON(CONTACT_INFO_FILE);
+app.delete('/api/contact-info/:id', requireAdmin, async (req, res) => {
+  const entries = await store.getContactInfo();
   const exists = entries.some(e => e.id === req.params.id);
   if (!exists) return res.status(404).json({ error: 'Contact info not found.' });
-  writeJSON(CONTACT_INFO_FILE, entries.filter(e => e.id !== req.params.id));
+  await store.saveContactInfo(entries.filter(e => e.id !== req.params.id));
   res.json({ message: 'Contact info deleted.' });
 });
 
@@ -1440,57 +1415,53 @@ function labelForType(type) {
 //  version history first, so it can always be restored.
 // =====================================================
 
-function emptyContentDoc() {
-  return { elements: {}, updatedAt: null };
-}
-
 // Public: anyone can read the published content (storefront needs it),
 // only the admin can read the draft.
-app.get('/api/site-content', (req, res) => {
+app.get('/api/site-content', async (req, res) => {
   const mode = req.query.mode === 'draft' ? 'draft' : 'published';
   if (mode === 'draft') {
     if (!(req.session && req.session.user && req.session.user.role === 'admin')) {
       return res.status(401).json({ error: 'Unauthorized. Admin login required.' });
     }
-    return res.json(readJSONWithDefault(SITE_CONTENT_DRAFT_FILE, emptyContentDoc()));
+    return res.json(await store.getSiteContent('draft'));
   }
-  return res.json(readJSONWithDefault(SITE_CONTENT_FILE, emptyContentDoc()));
+  return res.json(await store.getSiteContent('published'));
 });
 
 // Autosave the draft as the admin works (not visible to real visitors).
-app.post('/api/site-content/draft', requireAdmin, (req, res) => {
+app.post('/api/site-content/draft', requireAdmin, async (req, res) => {
   const elements = (req.body && typeof req.body.elements === 'object' && req.body.elements) || {};
   const doc = { elements, updatedAt: new Date().toISOString() };
-  writeJSON(SITE_CONTENT_DRAFT_FILE, doc);
+  await store.saveSiteContent('draft', doc);
   res.json({ message: 'Draft saved.', doc });
 });
 
 // Reset the draft back to whatever is currently published (discard changes).
-app.post('/api/site-content/discard', requireAdmin, (req, res) => {
-  const published = readJSONWithDefault(SITE_CONTENT_FILE, emptyContentDoc());
-  writeJSON(SITE_CONTENT_DRAFT_FILE, published);
+app.post('/api/site-content/discard', requireAdmin, async (req, res) => {
+  const published = await store.getSiteContent('published');
+  await store.saveSiteContent('draft', published);
   res.json({ message: 'Draft discarded.', doc: published });
 });
 
 // Officially go live: snapshot current published state into version
 // history, then promote the draft to be the new published state.
-app.post('/api/site-content/publish', requireAdmin, (req, res) => {
-  const published = readJSONWithDefault(SITE_CONTENT_FILE, emptyContentDoc());
-  const draft = readJSONWithDefault(SITE_CONTENT_DRAFT_FILE, emptyContentDoc());
+app.post('/api/site-content/publish', requireAdmin, async (req, res) => {
+  const published = await store.getSiteContent('published');
+  const draft = await store.getSiteContent('draft');
 
-  const versions = readJSON(SITE_CONTENT_VERSIONS_FILE);
+  const versions = await store.getSiteContentVersions();
   versions.unshift({
     id: uuidv4(),
     snapshot: published,
     savedAt: new Date().toISOString(),
     label: req.body && req.body.label ? String(req.body.label).slice(0, 120) : ''
   });
-  writeJSON(SITE_CONTENT_VERSIONS_FILE, versions.slice(0, MAX_VERSIONS));
+  await store.saveSiteContentVersions(versions.slice(0, MAX_VERSIONS));
 
   const newPublished = { elements: draft.elements || {}, updatedAt: new Date().toISOString() };
-  writeJSON(SITE_CONTENT_FILE, newPublished);
+  await store.saveSiteContent('published', newPublished);
   // Keep the draft in sync with what's now live.
-  writeJSON(SITE_CONTENT_DRAFT_FILE, newPublished);
+  await store.saveSiteContent('draft', newPublished);
 
   res.json({ message: 'Changes are now live.', doc: newPublished });
 });
@@ -1498,19 +1469,19 @@ app.post('/api/site-content/publish', requireAdmin, (req, res) => {
 // List saved versions (most recent first). Snapshots are small
 // (element metadata + image paths, no binary data) so returning them
 // in full keeps restore simple.
-app.get('/api/site-content/versions', requireAdmin, (req, res) => {
-  res.json(readJSON(SITE_CONTENT_VERSIONS_FILE));
+app.get('/api/site-content/versions', requireAdmin, async (req, res) => {
+  res.json(await store.getSiteContentVersions());
 });
 
 // Restore a previous version into the draft. This does NOT go live by
 // itself — the admin still has to press Save/Publish, same as any
 // other draft edit.
-app.post('/api/site-content/restore/:versionId', requireAdmin, (req, res) => {
-  const versions = readJSON(SITE_CONTENT_VERSIONS_FILE);
+app.post('/api/site-content/restore/:versionId', requireAdmin, async (req, res) => {
+  const versions = await store.getSiteContentVersions();
   const version = versions.find(v => v.id === req.params.versionId);
   if (!version) return res.status(404).json({ error: 'Version not found.' });
   const doc = { elements: version.snapshot.elements || {}, updatedAt: new Date().toISOString() };
-  writeJSON(SITE_CONTENT_DRAFT_FILE, doc);
+  await store.saveSiteContent('draft', doc);
   res.json({ message: 'Version restored into draft. Press Save to publish it.', doc });
 });
 
@@ -1527,29 +1498,16 @@ app.post('/api/site-content/upload-image', requireAdmin, upload.single('image'),
 //  Public GET so the storefront can pick it up on every page load;
 //  writes are admin-only.
 // =====================================================
-function defaultMusicSettings() {
-  return {
-    enabled: false,
-    autoplay: false,
-    loop: true,
-    volume: 0.5,
-    url: null,
-    filename: null,
-    originalName: null,
-    updatedAt: null
-  };
-}
-
-app.get('/api/site-music', (req, res) => {
-  res.json(readJSONWithDefault(SITE_MUSIC_FILE, defaultMusicSettings()));
+app.get('/api/site-music', async (req, res) => {
+  res.json(await store.getSiteMusic());
 });
 
 // Upload/replace the background track. Any previously uploaded file is
 // removed from disk so orphaned audio files don't pile up in /uploads.
-app.post('/api/site-music/upload', requireAdmin, uploadAudio.single('track'), (req, res) => {
+app.post('/api/site-music/upload', requireAdmin, uploadAudio.single('track'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file received.' });
 
-  const settings = readJSONWithDefault(SITE_MUSIC_FILE, defaultMusicSettings());
+  const settings = await store.getSiteMusic();
   const oldFilename = settings.filename;
 
   const updated = {
@@ -1559,7 +1517,7 @@ app.post('/api/site-music/upload', requireAdmin, uploadAudio.single('track'), (r
     originalName: req.file.originalname,
     updatedAt: new Date().toISOString()
   };
-  writeJSON(SITE_MUSIC_FILE, updated);
+  await store.saveSiteMusic(updated);
 
   if (oldFilename) {
     const oldPath = path.join(UPLOADS_DIR, oldFilename);
@@ -1571,8 +1529,8 @@ app.post('/api/site-music/upload', requireAdmin, uploadAudio.single('track'), (r
 
 // Update playback settings (enabled / autoplay / loop / volume) without
 // touching the currently uploaded track.
-app.put('/api/site-music', requireAdmin, (req, res) => {
-  const settings = readJSONWithDefault(SITE_MUSIC_FILE, defaultMusicSettings());
+app.put('/api/site-music', requireAdmin, async (req, res) => {
+  const settings = await store.getSiteMusic();
   const { enabled, autoplay, loop, volume } = req.body || {};
 
   const updated = {
@@ -1583,18 +1541,18 @@ app.put('/api/site-music', requireAdmin, (req, res) => {
     volume: typeof volume === 'number' ? Math.min(1, Math.max(0, volume)) : settings.volume,
     updatedAt: new Date().toISOString()
   };
-  writeJSON(SITE_MUSIC_FILE, updated);
+  await store.saveSiteMusic(updated);
   res.json({ message: 'Music settings updated.', settings: updated });
 });
 
 // Remove the current track entirely (deletes the file, resets to defaults).
-app.delete('/api/site-music', requireAdmin, (req, res) => {
-  const settings = readJSONWithDefault(SITE_MUSIC_FILE, defaultMusicSettings());
+app.delete('/api/site-music', requireAdmin, async (req, res) => {
+  const settings = await store.getSiteMusic();
   if (settings.filename) {
     fs.unlink(path.join(UPLOADS_DIR, settings.filename), () => {});
   }
-  const reset = { ...defaultMusicSettings() };
-  writeJSON(SITE_MUSIC_FILE, reset);
+  const reset = { ...store.defaultMusicSettings() };
+  await store.saveSiteMusic(reset);
   res.json({ message: 'Track removed.', settings: reset });
 });
 

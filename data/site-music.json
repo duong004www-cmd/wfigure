@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "autoplay": true,
+  "enabled": false,
+  "autoplay": false,
   "loop": true,
-  "volume": 1,
-  "url": "/uploads/e996ed64-d64b-47ec-915a-f358691fec94.mp3",
-  "filename": "e996ed64-d64b-47ec-915a-f358691fec94.mp3",
-  "originalName": "Machine Love (feat. Kasane Teto) [sqK-jh4TDXo].mp3",
-  "updatedAt": "2026-07-12T13:50:58.005Z"
+  "volume": 0.5,
+  "url": null,
+  "filename": null,
+  "originalName": null,
+  "updatedAt": null
 }

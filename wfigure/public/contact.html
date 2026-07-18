@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — wfigure</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="/index.html">Home</a> / <span>Contact</span></div>
+      <h1 class="page-title" data-edit-id="contact.title" data-edit-type="text" data-edit-label="Contact page title">Contact Us</h1>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="contact-grid">
+      <div class="contact-info-card">
+        <div class="info-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+          <div>
+            <h4 data-edit-id="contact.hotlineLabel" data-edit-type="text" data-edit-label="Hotline label">Support Hotline</h4>
+            <a href="tel:0365244436">0365 244 436</a>
+            <p data-edit-id="contact.hotlineHours" data-edit-type="text" data-edit-label="Hotline hours">Available daily, 09:00 – 20:30</p>
+          </div>
+        </div>
+        <div class="info-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+          <div>
+            <h4 data-edit-id="contact.emailLabel" data-edit-type="text" data-edit-label="Email label">Email</h4>
+            <a href="mailto:contact@wfigure.vn">contact@wfigure.vn</a>
+            <p data-edit-id="contact.emailNote" data-edit-type="text" data-edit-label="Email reply note">We reply within 24 hours</p>
+          </div>
+        </div>
+        <div class="info-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <div>
+            <h4 data-edit-id="contact.addressLabel" data-edit-type="text" data-edit-label="Address label">Store Address</h4>
+            <p data-edit-id="contact.addressText" data-edit-type="text" data-edit-label="Store address">32 Đồng Xoài, Phường Tân Bình, TP. Hồ Chí Minh</p>
+          </div>
+        </div>
+        <div class="map-embed">
+          <iframe
+            src="https://www.google.com/maps?q=Ho%20Chi%20Minh%20City&output=embed"
+            width="100%" height="100%" style="border:0;" loading="lazy"></iframe>
+        </div>
+      </div>
+
+      <div>
+        <div id="contactAlert" class="alert"></div>
+        <form id="contactForm">
+          <div class="field">
+            <label for="cName">Full Name</label>
+            <input type="text" id="cName" name="name" required>
+          </div>
+          <div class="field">
+            <label for="cEmail">Email</label>
+            <input type="email" id="cEmail" name="email" required>
+          </div>
+          <div class="field">
+            <label for="cPhone">Phone (optional)</label>
+            <input type="tel" id="cPhone" name="phone">
+          </div>
+          <div class="field">
+            <label for="cMessage">Message</label>
+            <textarea id="cMessage" name="message" rows="6" required placeholder="Tell us which figure you're looking for, or ask about an order..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+const form = document.getElementById('contactForm');
+const alertBox = document.getElementById('contactAlert');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  try {
+    const res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    alertBox.textContent = result.message || result.error;
+    alertBox.className = `alert ${res.ok ? 'alert-success' : 'alert-error'} show`;
+    if (res.ok) form.reset();
+  } catch (err) {
+    alertBox.textContent = 'Something went wrong. Please try again or call our hotline.';
+    alertBox.className = 'alert alert-error show';
+  }
+});
+</script>
+</body>
+</html>

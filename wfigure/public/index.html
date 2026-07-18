@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wfigure — Authentic Anime &amp; Manga Figures</title>
+<meta name="description" content="wfigure - shop for authentic anime and manga figures, Nendoroid, scale figures, Gundam models, plushies and character goods.">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div id="site-header"></div>
+
+<main>
+  <section class="hero">
+    <div class="container hero-inner">
+      <div>
+        <span class="eyebrow">Authentic · Nhật Bản Chính Hãng</span>
+        <h1 data-edit-id="home.heroTitle" data-edit-type="text" data-edit-label="Hero title">Sưu tầm nhân vật<br>bạn yêu thích, <span>từng chi tiết một.</span></h1>
+        <p data-edit-id="home.heroSubtitle" data-edit-type="text" data-edit-label="Hero subtitle">wfigure mang đến mô hình anime &amp; manga chính hãng — PVC Figure, Nendoroid, Gundam, Resin và Plushie — được tuyển chọn kỹ lưỡng cho cộng đồng người sưu tầm.</p>
+        <div class="hero-cta">
+          <a href="/category.html?category=all" class="btn btn-primary" data-edit-id="home.heroCtaPrimary" data-edit-type="text" data-edit-label="Hero primary button">Shop All Products</a>
+          <a href="/category.html?category=new-releases" class="btn btn-outline" data-edit-id="home.heroCtaSecondary" data-edit-type="text" data-edit-label="Hero secondary button">New Releases</a>
+        </div>
+      </div>
+      <div class="hero-visual" data-edit-id="home.heroVisual" data-edit-type="slideshow" data-edit-label="Hero visual — image slideshow">
+        <div class="hero-visual-default">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <svg class="center-icon" viewBox="0 0 24 24" fill="none" stroke-width="1"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5"/><path d="M12 12v10"/></svg>
+        </div>
+        <div class="hero-slideshow" style="display:none"></div>
+        <div class="badge-float top" data-edit-id="home.badgeTop" data-edit-type="text" data-edit-label="Flash sale badge">🔥 Flash Sale up to -26%</div>
+        <div class="badge-float bottom" data-edit-id="home.badgeBottom" data-edit-type="text" data-edit-label="Authenticity badge">✔ 100% Authentic</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="quickstrip">
+    <div class="container quickstrip-row" id="quickCategoryStrip"></div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Featured Figures</h2>
+          <div class="sub">Hand-picked figures our collectors love most</div>
+        </div>
+        <a class="view-all" href="/category.html?featured=true">View all →</a>
+      </div>
+      <div class="grid" id="featuredGrid"></div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--ink-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>In Stock — Ships Now</h2>
+          <div class="sub">Ready to ship immediately, no waiting on pre-order</div>
+        </div>
+        <a class="view-all" href="/category.html?status=in-stock">View all →</a>
+      </div>
+      <div class="grid" id="inStockGrid"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Pre-order &amp; Order</h2>
+          <div class="sub">Reserve upcoming releases before they sell out</div>
+        </div>
+        <a class="view-all" href="/category.html?status=pre-order">View all →</a>
+      </div>
+      <div class="grid" id="preOrderGrid"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" id="site-footer"></footer>
+
+<script src="/js/common.js"></script>
+<script>
+async function loadHomeData() {
+  try {
+    const [featuredRes, catRes] = await Promise.all([
+      fetch('/api/products?featured=true&limit=8'),
+      fetch('/api/categories')
+    ]);
+    const featured = await featuredRes.json();
+    document.getElementById('featuredGrid').innerHTML = featured.map(productCardHTML).join('') || emptyState();
+
+    const catData = await catRes.json();
+    const strip = document.getElementById('quickCategoryStrip');
+    strip.innerHTML = catData.menu.slice(0, 9).map(item => {
+      let href;
+      if (item.type === 'mega') {
+        const first = item.columns[0].links[0];
+        href = `/category.html?${first.kind}=${encodeURIComponent(first.value)}`;
+      } else {
+        href = simpleMenuHref(item);
+      }
+      return `<a class="quickchip" href="${href}">${item.label}</a>`;
+    }).join('');
+  } catch (e) { console.error(e); }
+
+  try {
+    const res = await fetch('/api/products?status=in-stock&limit=4');
+    const items = await res.json();
+    document.getElementById('inStockGrid').innerHTML = items.map(productCardHTML).join('') || emptyState();
+  } catch (e) { console.error(e); }
+
+  try {
+    const res = await fetch('/api/products?status=pre-order&limit=4');
+    const items = await res.json();
+    document.getElementById('preOrderGrid').innerHTML = items.map(productCardHTML).join('') || emptyState();
+  } catch (e) { console.error(e); }
+}
+
+function emptyState() {
+  return `<div class="empty-state" style="grid-column:1/-1;">No products yet — check back soon.</div>`;
+}
+
+document.addEventListener('DOMContentLoaded', loadHomeData);
+</script>
+</body>
+</html>

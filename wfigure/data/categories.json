@@ -1,0 +1,121 @@
+{
+  "menu": [
+    {
+      "id": "new-releases",
+      "label": "Sản phẩm mới ra mắt",
+      "icon": "sparkles",
+      "type": "simple"
+    },
+    {
+      "id": "in-stock",
+      "label": "Còn hàng",
+      "icon": "box",
+      "type": "simple"
+    },
+    {
+      "id": "all",
+      "label": "Tất cả sản phẩm",
+      "icon": "grid",
+      "type": "simple"
+    },
+    {
+      "id": "mo-hinh-figure",
+      "label": "Mô hình / Figure",
+      "icon": "figure",
+      "type": "mega",
+      "page": "/mo-hinh-figure.html",
+      "intro": "PVC Figure, Scale Figure, Nendoroid, POP UP PARADE, Resin và Gundam — mọi dòng mô hình chính hãng, tuyển chọn cho collector.",
+      "columns": [
+        {
+          "title": "Loại mô hình",
+          "links": [
+            { "label": "PVC Figure", "value": "prize-figure", "kind": "category" },
+            { "label": "Scale Figure", "value": "scale-figure", "kind": "category" },
+            { "label": "Nendoroid", "value": "nendoroid", "kind": "category" },
+            { "label": "POP UP PARADE", "value": "pop-up-parade", "kind": "category" },
+            { "label": "Mô hình Resin", "value": "resin-figure", "kind": "category" },
+            { "label": "Gundam / Mô hình nhựa", "value": "gundam", "kind": "category" }
+          ]
+        },
+        {
+          "title": "Hãng sản xuất",
+          "links": [
+            { "label": "Good Smile Company", "value": "Good Smile Company", "kind": "brand" },
+            { "label": "Bandai / Bandai Spirits", "value": "Bandai", "kind": "brand" },
+            { "label": "Taito", "value": "Taito", "kind": "brand" },
+            { "label": "Sega", "value": "Sega", "kind": "brand" },
+            { "label": "APEX", "value": "APEX", "kind": "brand" }
+          ]
+        },
+        {
+          "title": "Series nổi bật",
+          "links": [
+            { "label": "Vocaloid", "value": "Vocaloid", "kind": "series" },
+            { "label": "Fate Series", "value": "Fate Series", "kind": "series" },
+            { "label": "One Piece", "value": "One Piece", "kind": "series" },
+            { "label": "Genshin Impact", "value": "Genshin Impact", "kind": "series" },
+            { "label": "Demon Slayer", "value": "Demon Slayer", "kind": "series" }
+          ]
+        },
+        {
+          "title": "Nhân vật",
+          "links": [
+            { "label": "Hatsune Miku", "value": "Hatsune Miku", "kind": "character" },
+            { "label": "Frieren", "value": "Frieren", "kind": "character" },
+            { "label": "Raiden Shogun", "value": "Raiden Shogun", "kind": "character" },
+            { "label": "Albedo", "value": "Albedo", "kind": "character" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "san-pham-khac",
+      "label": "Sản phẩm khác",
+      "icon": "bag",
+      "type": "mega",
+      "page": "/san-pham-khac.html",
+      "intro": "Blindbox, plushie, character goods, phụ kiện trưng bày và trading card — mọi thứ khác ngoài mô hình dành cho fan anime & manga.",
+      "columns": [
+        {
+          "title": "Đồ chơi & nghệ thuật",
+          "links": [
+            { "label": "Blindbox / Arttoy", "value": "blindbox", "kind": "category" },
+            { "label": "Plushie / Thú bông", "value": "plushie", "kind": "category" },
+            { "label": "Character Goods", "value": "character-goods", "kind": "category" }
+          ]
+        },
+        {
+          "title": "Phụ kiện trưng bày",
+          "links": [
+            { "label": "Tủ / Hộp trưng bày", "value": "display-case", "kind": "category" },
+            { "label": "Trading Card", "value": "trading-card", "kind": "category" }
+          ]
+        },
+        {
+          "title": "Khám phá thêm",
+          "links": [
+            { "label": "Xem tất cả sản phẩm khác", "value": "all", "kind": "category" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pre-order",
+      "label": "Đặt trước / Order",
+      "icon": "clock",
+      "type": "mega",
+      "page": "/dat-truoc-order.html",
+      "intro": "Theo dõi tình trạng đơn hàng: sản phẩm đặt trước sắp phát hành, hàng mới ra mắt và hàng có sẵn giao ngay.",
+      "columns": [
+        {
+          "title": "Tình trạng đơn hàng",
+          "links": [
+            { "label": "Đặt trước (chưa phát hành)", "value": "pre-order", "kind": "status" },
+            { "label": "Còn hàng (đã phát hành)", "value": "in-stock", "kind": "status" },
+            { "label": "Mới ra mắt", "value": "newest", "kind": "sort" }
+          ]
+        }
+      ]
+    }
+  ]
+}
