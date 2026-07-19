@@ -976,23 +976,32 @@ footer.site-footer{
 /* Floating AI chat panel (site-wide bubble, all pages except contact.html
    which has the full embedded widget instead). */
 .ai-floating-panel{
-  position:fixed;right:18px;bottom:100px;z-index:95;
-  width:360px;max-width:calc(100vw - 32px);
-  max-height:calc(100vh - 130px);
+  position:fixed;right:18px;bottom:16px;z-index:95;
+  width:380px;max-width:calc(100vw - 32px);
+  height:min(860px, calc(100vh - 32px));
+  height:min(860px, calc(100dvh - 32px));
+  max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);
   display:flex;
   opacity:0;transform:translateY(16px) scale(0.97);pointer-events:none;
   transition:opacity .18s ease, transform .18s ease;
 }
 .ai-floating-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
-.ai-floating-panel .ai-chat-widget{max-width:none;box-shadow:var(--shadow-2);max-height:100%;}
-.ai-floating-panel .ai-chat-log{min-height:0;max-height:none;flex:1;}
+.ai-floating-panel .ai-chat-widget{max-width:none;box-shadow:var(--shadow-2);height:100%;max-height:100%;}
+.ai-floating-panel .ai-chat-log{min-height:0;max-height:none;flex:1 1 auto;overflow-y:auto;}
 .ai-chat-close{
   background:none;border:none;color:var(--text-dim);font-size:1.4rem;line-height:1;
   padding:4px 8px;border-radius:8px;flex-shrink:0;transition:color .15s ease, background .15s ease;
 }
 .ai-chat-close:hover{color:var(--coral);background:rgba(255,255,255,0.06);}
 @media (max-width:480px){
-  .ai-floating-panel{right:10px;left:10px;width:auto;bottom:92px;max-height:calc(100vh - 116px);}
+  .ai-floating-panel{
+    right:8px;left:8px;width:auto;bottom:10px;
+    height:calc(100vh - 20px);
+    height:calc(100dvh - 20px);
+    max-height:calc(100vh - 20px);
+    max-height:calc(100dvh - 20px);
+  }
 }
 
 /* =========================================================
