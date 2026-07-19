@@ -135,6 +135,20 @@ CREATE TABLE IF NOT EXISTS flash_sale (
 );
 
 -- =====================================================
+-- PAYMENT SETTINGS (single site-wide bank-transfer config,
+-- shown on the checkout page's QR transfer option)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS payment_settings (
+  id              SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  bank_name       TEXT NOT NULL DEFAULT 'Sacombank',
+  account_name    TEXT NOT NULL DEFAULT 'CONG TY WFIGURE',
+  account_number  TEXT NOT NULL DEFAULT '0699999999999',
+  transfer_note   TEXT NOT NULL DEFAULT 'Mã đơn hàng của bạn',
+  qr_image_url    TEXT,
+  updated_at      TIMESTAMPTZ
+);
+
+-- =====================================================
 -- SITE CONTENT (visual editor) -- 'published' and 'draft' rows
 -- =====================================================
 CREATE TABLE IF NOT EXISTS site_content (

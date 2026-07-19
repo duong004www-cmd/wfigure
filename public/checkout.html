@@ -53,7 +53,8 @@ const state = {
   delivery: 'ship',        // 'ship' | 'pickup'
   payment: 'cod',          // 'cod' | 'cash' | 'qr'
   promo: null,             // { code, percent }
-  invoiceOpen: false
+  invoiceOpen: false,
+  paymentSettings: null    // bank-transfer details, loaded from /api/payment-settings
 };
 
 async function loadUser() {
@@ -64,6 +65,13 @@ async function loadUser() {
       if (data.user.role !== 'admin') state.user = data.user;
     }
   } catch (e) { /* guest checkout */ }
+}
+
+async function loadPaymentSettings() {
+  try {
+    const res = await fetch('/api/payment-settings');
+    if (res.ok) state.paymentSettings = await res.json();
+  } catch (e) { /* fall back to defaults in paymentOptionData */ }
 }
 
 function shippingFee() {
@@ -282,7 +290,7 @@ function paymentOptionData(key) {
     },
     qr: {
       icon: ICONS_CO.qr,
-      label: 'Chuyển khoản qua QR - SACOMBANK',
+      label: `Chuyển khoản qua QR - ${(state.paymentSettings && state.paymentSettings.bankName ? state.paymentSettings.bankName : 'SACOMBANK').toUpperCase()}`,
       qr: true
     }
   }[key];
@@ -301,17 +309,27 @@ function renderPaymentOptions() {
         <span class="payment-option-label">${opt.label}</span>
       </label>
       ${selected && opt.body ? `<div class="payment-option-body">${opt.body}</div>` : ''}
-      ${selected && opt.qr ? `
+      ${selected && opt.qr ? (() => {
+        const ps = state.paymentSettings || {};
+        const bankName = escapeHtml(ps.bankName || 'Sacombank');
+        const accountName = escapeHtml(ps.accountName || 'CONG TY WFIGURE');
+        const accountNumber = escapeHtml(ps.accountNumber || '0699999999999');
+        const transferNote = escapeHtml(ps.transferNote || 'Mã đơn hàng của bạn');
+        const qrBox = ps.qrImageUrl
+          ? `<img src="${escapeHtml(ps.qrImageUrl)}" alt="Mã QR chuyển khoản" style="width:100%;height:100%;object-fit:contain;">`
+          : ICONS_CO.qr;
+        return `
       <div class="qr-panel">
-        <div class="qr-panel-box">${ICONS_CO.qr}</div>
+        <div class="qr-panel-box">${qrBox}</div>
         <div class="qr-panel-details">
-          Ngân hàng: <strong>Sacombank</strong><br>
-          Chủ tài khoản: <strong>CONG TY WFIGURE</strong><br>
-          Số tài khoản: <strong>0699999999999</strong><br>
-          Nội dung CK: <strong>Mã đơn hàng của bạn</strong> (hiện sau khi đặt hàng)<br>
+          Ngân hàng: <strong>${bankName}</strong><br>
+          Chủ tài khoản: <strong>${accountName}</strong><br>
+          Số tài khoản: <strong>${accountNumber}</strong><br>
+          Nội dung CK: <strong>${transferNote}</strong> (hiện sau khi đặt hàng)<br>
           <span style="color:var(--text-faint);">Quét mã QR hoặc chuyển khoản đúng nội dung để đơn hàng được xử lý nhanh nhất.</span>
         </div>
-      </div>` : ''}
+      </div>`;
+      })() : ''}
     </div>`;
   }).join('');
 
@@ -477,7 +495,7 @@ function renderOrderSuccess(order) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadUser();
+  await Promise.all([loadUser(), loadPaymentSettings()]);
   renderCheckout();
 });
 </script>

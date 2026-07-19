@@ -25,6 +25,7 @@ function initAdmin() {
   wireProductForm();
   wireBulkImport();
   wireContactInfoForm();
+  wirePaymentSettingsForm();
   wireMusicForms();
   wireFlashSaleForm();
   wireBlogForm();
@@ -48,6 +49,7 @@ function wireNav() {
       if (btn.dataset.view === 'messages') loadMessages();
       if (btn.dataset.view === 'add' && !editingId) resetProductForm();
       if (btn.dataset.view === 'contactinfo') loadContactInfo();
+      if (btn.dataset.view === 'payment') loadPaymentSettings();
       if (btn.dataset.view === 'music') loadMusicSettings();
       if (btn.dataset.view === 'flashsale') loadFlashSaleAdmin();
       if (btn.dataset.view === 'blog') loadBlogAdmin();
@@ -600,6 +602,62 @@ async function deleteContactInfo(id) {
   } catch (e) {
     showToast('Something went wrong.', 'error');
   }
+}
+
+// =====================================================
+//  PAYMENT SETTINGS
+// =====================================================
+let currentPaymentSettings = null;
+
+async function loadPaymentSettings() {
+  try {
+    const res = await fetch('/api/payment-settings');
+    currentPaymentSettings = await res.json();
+    renderPaymentSettings();
+  } catch (e) { console.error(e); }
+}
+
+function renderPaymentSettings() {
+  const s = currentPaymentSettings;
+  if (!s) return;
+  document.getElementById('pay_bankName').value = s.bankName || '';
+  document.getElementById('pay_accountName').value = s.accountName || '';
+  document.getElementById('pay_accountNumber').value = s.accountNumber || '';
+  document.getElementById('pay_transferNote').value = s.transferNote || '';
+  document.getElementById('pay_qrImageUrl').value = s.qrImageUrl || '';
+}
+
+function wirePaymentSettingsForm() {
+  document.getElementById('paymentSettingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      bankName: document.getElementById('pay_bankName').value.trim(),
+      accountName: document.getElementById('pay_accountName').value.trim(),
+      accountNumber: document.getElementById('pay_accountNumber').value.trim(),
+      transferNote: document.getElementById('pay_transferNote').value.trim(),
+      qrImageUrl: document.getElementById('pay_qrImageUrl').value.trim()
+    };
+    const btn = document.getElementById('savePaymentBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const res = await fetch('/api/payment-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (!res.ok) { setAlertBox('paymentAlert', result.error || 'Failed to save.', 'error'); return; }
+      currentPaymentSettings = result.settings;
+      renderPaymentSettings();
+      setAlertBox('paymentAlert', result.message, 'success');
+    } catch (err) {
+      setAlertBox('paymentAlert', 'Something went wrong while saving.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Payment Settings';
+    }
+  });
 }
 
 // =====================================================

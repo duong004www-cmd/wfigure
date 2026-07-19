@@ -25,6 +25,7 @@
       <button class="admin-nav-item" data-view="blog" data-title="Blog / News">Blog / News</button>
       <button class="admin-nav-item" data-view="messages" data-title="Contact Messages">Contact Messages</button>
       <button class="admin-nav-item" data-view="contactinfo" data-title="Contact Info">Contact Info</button>
+      <button class="admin-nav-item" data-view="payment" data-title="Payment Settings">Payment Settings</button>
       <button class="admin-nav-item" data-view="music" data-title="Background Music">Background Music</button>
       <a href="/index.html?edit=1" class="admin-nav-item" id="editWebsiteBtn" style="text-decoration:none;display:block;">✏️ Edit Website</a>
     </nav>
@@ -304,6 +305,40 @@
           <tbody id="contactInfoTableBody"></tbody>
         </table>
       </div>
+    </section>
+
+    <!-- PAYMENT SETTINGS VIEW -->
+    <section class="admin-view" id="view-payment" style="display:none;">
+      <p class="admin-help">These bank-transfer details are shown to customers on the checkout page under "Chuyển khoản qua QR" (QR bank transfer). Update them any time your bank account or QR code changes.</p>
+      <div id="paymentAlert" class="alert"></div>
+      <form id="paymentSettingsForm" class="admin-form">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label>Bank Name *</label>
+            <input type="text" id="pay_bankName" required placeholder="e.g. Sacombank">
+          </div>
+          <div class="field">
+            <label>Account Holder Name *</label>
+            <input type="text" id="pay_accountName" required placeholder="e.g. CONG TY WFIGURE">
+          </div>
+          <div class="field">
+            <label>Account Number *</label>
+            <input type="text" id="pay_accountNumber" required placeholder="e.g. 0699999999999">
+          </div>
+          <div class="field">
+            <label>Transfer Note</label>
+            <input type="text" id="pay_transferNote" placeholder="e.g. Mã đơn hàng của bạn">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>QR Code Image URL (optional)</label>
+            <input type="text" id="pay_qrImageUrl" placeholder="Paste an image URL, or leave blank to show a generic QR icon">
+            <p class="admin-help" style="margin-top:6px;">Leave blank to show a placeholder QR icon on checkout. Paste a direct image link to show your bank's real QR code instead.</p>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn-primary" id="savePaymentBtn">Save Payment Settings</button>
+        </div>
+      </form>
     </section>
 
     <!-- BACKGROUND MUSIC VIEW -->

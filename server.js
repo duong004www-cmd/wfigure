@@ -1557,6 +1557,32 @@ app.delete('/api/site-music', requireAdmin, async (req, res) => {
 });
 
 // =====================================================
+//  PAYMENT SETTINGS
+//  Bank-transfer details (bank name, account name/number, transfer note)
+//  shown on the checkout page's "Chuyển khoản qua QR" option. Public GET
+//  so the checkout page can render it, admin-only PUT to edit it.
+// =====================================================
+app.get('/api/payment-settings', async (req, res) => {
+  res.json(await store.getPaymentSettings());
+});
+
+app.put('/api/payment-settings', requireAdmin, async (req, res) => {
+  const settings = await store.getPaymentSettings();
+  const { bankName, accountName, accountNumber, transferNote, qrImageUrl } = req.body || {};
+
+  const updated = {
+    bankName: typeof bankName === 'string' && bankName.trim() ? bankName.trim() : settings.bankName,
+    accountName: typeof accountName === 'string' && accountName.trim() ? accountName.trim() : settings.accountName,
+    accountNumber: typeof accountNumber === 'string' && accountNumber.trim() ? accountNumber.trim() : settings.accountNumber,
+    transferNote: typeof transferNote === 'string' && transferNote.trim() ? transferNote.trim() : settings.transferNote,
+    qrImageUrl: qrImageUrl !== undefined ? (qrImageUrl || null) : settings.qrImageUrl,
+    updatedAt: new Date().toISOString()
+  };
+  await store.savePaymentSettings(updated);
+  res.json({ message: 'Payment settings saved.', settings: updated });
+});
+
+// =====================================================
 //  FALLBACK / START
 // =====================================================
 app.get('/admin', (req, res) => {
