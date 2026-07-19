@@ -201,6 +201,12 @@ app.get('/api/config', (req, res) => {
 // automatically the first time someone signs in with a given Google
 // account, or linking an existing email/password account if the emails
 // match.
+// Trả Google Client ID cho frontend
+app.get('/api/auth/google/config', (req, res) => {
+  res.json({
+    googleClientId: GOOGLE_CLIENT_ID || null
+  });
+});
 app.post('/api/auth/google', async (req, res) => {
   if (!googleClient) {
     return res.status(503).json({ error: 'Google Sign-In chưa được cấu hình trên server.' });
