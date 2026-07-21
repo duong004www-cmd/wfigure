@@ -14,6 +14,8 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const db = require("./db");
 const store = require('./lib/store');
 const app = express();
@@ -39,6 +41,54 @@ const googleClient = (GOOGLE_CLIENT_ID && OAuth2Client) ? new OAuth2Client(GOOGL
 const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || '';
 const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 const facebookEnabled = !!(FACEBOOK_APP_ID && FACEBOOK_APP_SECRET);
+console.log("Cloudinary Cloud:", process.env.CLOUDINARY_CLOUD_NAME);
+console.log("Cloudinary API Key:", process.env.CLOUDINARY_API_KEY);
+console.log("Cloudinary Secret:", process.env.CLOUDINARY_API_SECRET ? "OK" : "MISSING");
+
+// ---------- Cloudinary ----------
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const imageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'wfigure/images',
+    resource_type: 'image',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif']
+  }
+});
+
+const audioStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: 'wfigure/audio',
+    resource_type: 'video',
+    format: path.extname(file.originalname).replace('.', '')
+  })
+});
+
+// Extract the Cloudinary public_id (including folder) from a secure_url,
+// e.g. https://res.cloudinary.com/<cloud>/image/upload/v169.../wfigure/images/abc123.jpg
+// -> wfigure/images/abc123
+function cloudinaryPublicIdFromUrl(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+(?:\?.*)?$/);
+  return match ? match[1] : null;
+}
+
+// Best-effort delete of a Cloudinary asset given its stored URL (or legacy
+// local /uploads/... path, which is simply skipped since Cloudinary never
+// created it). Never throws — mirrors the old "ignore errors" cleanup style.
+function deleteCloudinaryAsset(urlOrPath, resourceType) {
+  if (!urlOrPath || typeof urlOrPath !== 'string') return;
+  if (!/^https?:\/\/res\.cloudinary\.com\//.test(urlOrPath)) return;
+  const publicId = cloudinaryPublicIdFromUrl(urlOrPath);
+  if (!publicId) return;
+  cloudinary.uploader.destroy(publicId, { resource_type: resourceType || 'image' }).catch(() => { /* ignore */ });
+}
 
 // ---------- Paths ----------
 // IMPORTANT (Render free tier bug fix):
@@ -93,17 +143,12 @@ app.use(session({
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Multer (image upload) ----------
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  }
-});
+// Files now go straight to Cloudinary (folder wfigure/images) instead of
+// local disk — nothing is written under UPLOADS_DIR any more. UPLOADS_DIR
+// itself is kept only so the app can still *serve* any pre-existing files
+// left over from before this migration (via express.static above).
 const upload = multer({
-  storage,
+  storage: imageStorage,
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (/^image\//.test(file.mimetype)) cb(null, true);
@@ -112,8 +157,10 @@ const upload = multer({
 });
 
 // ---------- Multer (background music upload) ----------
+// Uploaded straight to Cloudinary (folder wfigure/audio, resource_type
+// 'video', which is Cloudinary's bucket for all non-image media incl. audio).
 const uploadAudio = multer({
-  storage,
+  storage: audioStorage,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (/^audio\//.test(file.mimetype) || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.originalname)) cb(null, true);
@@ -256,10 +303,19 @@ app.post('/api/auth/google', async (req, res) => {
     await store.saveUsers(users);
   }
 
-  req.session.user = { id: user.id, name: user.name, email: user.email, role: 'customer' };
-  return res.json({ message: `Chào mừng, ${user.name}!`, role: 'customer' });
-});
+ req.session.user = {
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: 'customer',
+  avatar: user.avatar || ''
+};
 
+return res.json({
+  message: `Chào mừng, ${user.name}!`,
+  role: 'customer'
+});
+});
 // Facebook Login: the browser uses the Facebook JS SDK to get a user
 // access token, then hands it to us here. We verify the token belongs to
 // our app (debug_token), fetch the basic profile from the Graph API, then
@@ -352,38 +408,47 @@ app.get('/api/categories', async (req, res) => {
 
 // List / filter / search products
 app.get('/api/products', async (req, res) => {
+
+  console.log("API /products START");   // <-- CHÈN DÒNG NÀY
+
   let products = await store.getProducts();
+
+  console.log("API /products AFTER getProducts");   // <-- CHÈN DÒNG NÀY
+
   const { category, brand, series, character, status, q, sort, featured, limit } = req.query;
 
-  // Multi-value support: category/brand/series/character/status may be a
-  // comma-separated list (e.g. category=nendoroid,gundam,scale-figure) so a
-  // single request can power a category "hub" page spanning several
-  // sub-categories at once.
+  // Multi-value support...
   const toList = (val) => val.split(',').map(s => s.trim()).filter(Boolean);
 
   if (category && category !== 'all') {
     const list = toList(category);
     products = products.filter(p => list.includes(p.category));
   }
+
   if (brand) {
     const list = toList(brand).map(s => s.toLowerCase());
     products = products.filter(p => list.includes((p.brand || '').toLowerCase()));
   }
+
   if (series) {
     const list = toList(series).map(s => s.toLowerCase());
     products = products.filter(p => list.includes((p.series || '').toLowerCase()));
   }
+
   if (character) {
     const list = toList(character).map(s => s.toLowerCase());
     products = products.filter(p => list.includes((p.character || '').toLowerCase()));
   }
+
   if (status) {
     const list = toList(status);
     products = products.filter(p => list.includes(p.status));
   }
+
   if (featured === 'true') {
     products = products.filter(p => p.featured);
   }
+
   if (q) {
     const query = q.toLowerCase();
     products = products.filter(p =>
@@ -400,9 +465,10 @@ app.get('/api/products', async (req, res) => {
 
   if (limit) products = products.slice(0, parseInt(limit, 10));
 
+  console.log("API /products END");   // <-- CHÈN DÒNG NÀY
+
   res.json(products);
 });
-
 // Get single product
 app.get('/api/products/:id', async (req, res) => {
   const products = await store.getProducts();
@@ -430,33 +496,73 @@ function normalizeDescriptionImages(product) {
 
 // Create product (admin only) — supports up to 5 images + up to 5 description images
 app.post('/api/products', requireAdmin, productUploadFields, async (req, res) => {
-  const { name, category, brand, series, character, price, oldPrice, status, description, featured } = req.body;
-  if (!name || !category || !price) {
-    return res.status(400).json({ error: 'Name, category and price are required.' });
-  }
-  const products = await store.getProducts();
-  const images = (req.files?.images || []).map(f => `/uploads/${f.filename}`);
-  const descriptionImages = (req.files?.descriptionImages || []).map(f => `/uploads/${f.filename}`);
+  
+  
+  try {
+    
 
-  const newProduct = {
-    id: uuidv4(),
-    name,
-    category,
-    brand: brand || '',
-    series: series || '',
-    character: character || '',
-    price: parseInt(price, 10) || 0,
-    oldPrice: oldPrice ? parseInt(oldPrice, 10) : 0,
-    status: status || 'in-stock',
-    description: description || '',
-    images,
-    descriptionImages,
-    featured: featured === 'true' || featured === true,
-    createdAt: new Date().toISOString()
-  };
-  products.unshift(newProduct);
-  await store.saveProducts(products);
-  res.json({ message: 'Product created successfully.', product: newProduct });
+    const {
+      name,
+      category,
+      brand,
+      series,
+      character,
+      price,
+      oldPrice,
+      status,
+      description,
+      featured
+    } = req.body;
+
+    if (!name || !category || !price) {
+      return res.status(400).json({
+        error: 'Name, category and price are required.'
+      });
+    }
+
+    console.log("STEP 2");
+
+    const images = (req.files?.images || []).map(f => f.path);
+    const descriptionImages = (req.files?.descriptionImages || []).map(f => f.path);
+
+    const newProduct = {
+      id: uuidv4(),
+      name,
+      category,
+      brand: brand || '',
+      series: series || '',
+      character: character || '',
+      price: parseInt(price, 10) || 0,
+      oldPrice: oldPrice ? parseInt(oldPrice, 10) : 0,
+      status: status || 'in-stock',
+      description: description || '',
+      images,
+      descriptionImages,
+      featured: featured === 'true' || featured === true,
+      createdAt: new Date().toISOString()
+    };
+
+    console.log("STEP 3");
+
+    await store.createProduct(newProduct);
+
+    console.log("STEP 4");
+    
+
+    res.json({
+      message: 'Product created successfully.',
+      product: newProduct
+    });
+
+    console.log("STEP 5");
+
+  } catch (err) {
+    console.error("CREATE PRODUCT ERROR:");
+    console.error(err);
+    res.status(500).json({
+    error: "Internal Server Error"
+});
+  }
 });
 
 // Update product (admin only) — new gallery images get appended, and
@@ -469,7 +575,7 @@ app.put('/api/products/:id', requireAdmin, productUploadFields, async (req, res)
 
   const body = req.body;
   const existing = products[idx];
-  const newImages = (req.files?.images || []).map(f => `/uploads/${f.filename}`);
+  const newImages = (req.files?.images || []).map(f => f.path);
 
   let keepImages = existing.images;
   if (body.removeImages) {
@@ -478,18 +584,13 @@ app.put('/api/products/:id', requireAdmin, productUploadFields, async (req, res)
   }
 
   const existingDescriptionImages = normalizeDescriptionImages(existing);
-  const newDescriptionImages = (req.files?.descriptionImages || []).map(f => `/uploads/${f.filename}`);
+  const newDescriptionImages = (req.files?.descriptionImages || []).map(f => f.path);
 
   let keepDescriptionImages = existingDescriptionImages;
   if (body.removeDescriptionImages) {
     const toRemove = JSON.parse(body.removeDescriptionImages);
     keepDescriptionImages = keepDescriptionImages.filter(img => !toRemove.includes(img));
-    toRemove.forEach(imgPath => {
-      const oldFilePath = path.join(__dirname, 'public', imgPath);
-      if (fs.existsSync(oldFilePath)) {
-        try { fs.unlinkSync(oldFilePath); } catch (e) { /* ignore */ }
-      }
-    });
+    toRemove.forEach(imgPath => deleteCloudinaryAsset(imgPath, 'image'));
   }
 
   products[idx] = {
@@ -519,19 +620,10 @@ app.delete('/api/products/:id', requireAdmin, async (req, res) => {
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found.' });
 
-  // Remove associated image files
-  (product.images || []).forEach(imgPath => {
-    const filePath = path.join(__dirname, 'public', imgPath);
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
-    }
-  });
-  normalizeDescriptionImages(product).forEach(imgPath => {
-    const descFilePath = path.join(__dirname, 'public', imgPath);
-    if (fs.existsSync(descFilePath)) {
-      try { fs.unlinkSync(descFilePath); } catch (e) { /* ignore */ }
-    }
-  });
+  // Remove associated image files (Cloudinary assets; legacy local
+  // /uploads/... paths are simply skipped, nothing to clean up there)
+  (product.images || []).forEach(imgPath => deleteCloudinaryAsset(imgPath, 'image'));
+  normalizeDescriptionImages(product).forEach(imgPath => deleteCloudinaryAsset(imgPath, 'image'));
 
   products = products.filter(p => p.id !== req.params.id);
   await store.saveProducts(products);
@@ -677,7 +769,7 @@ app.post('/api/blog', requireAdmin, upload.single('coverImage'), async (req, res
     content,
     category: category || 'Tin tức',
     author: author || 'wfigure',
-    coverImage: req.file ? `/uploads/${req.file.filename}` : '',
+    coverImage: req.file ? req.file.path : '',
     publishedAt: new Date().toISOString(),
     createdAt: new Date().toISOString()
   };
@@ -695,16 +787,10 @@ app.put('/api/blog/:id', requireAdmin, upload.single('coverImage'), async (req, 
   const body = req.body;
   let coverImage = existing.coverImage;
   if (req.file) {
-    if (existing.coverImage) {
-      const oldPath = path.join(__dirname, 'public', existing.coverImage);
-      if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ } }
-    }
-    coverImage = `/uploads/${req.file.filename}`;
+    if (existing.coverImage) deleteCloudinaryAsset(existing.coverImage, 'image');
+    coverImage = req.file.path;
   } else if (body.removeCoverImage === 'true') {
-    if (existing.coverImage) {
-      const oldPath = path.join(__dirname, 'public', existing.coverImage);
-      if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ } }
-    }
+    if (existing.coverImage) deleteCloudinaryAsset(existing.coverImage, 'image');
     coverImage = '';
   }
 
@@ -726,10 +812,7 @@ app.delete('/api/blog/:id', requireAdmin, async (req, res) => {
   let posts = await store.getBlogPosts();
   const post = posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found.' });
-  if (post.coverImage) {
-    const filePath = path.join(__dirname, 'public', post.coverImage);
-    if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ } }
-  }
+  if (post.coverImage) deleteCloudinaryAsset(post.coverImage, 'image');
   posts = posts.filter(p => p.id !== req.params.id);
   await store.saveBlogPosts(posts);
   res.json({ message: 'Post deleted successfully.' });
@@ -1493,8 +1576,13 @@ app.post('/api/site-content/restore/:versionId', requireAdmin, async (req, res) 
 
 // Upload a replacement image for an editable element.
 app.post('/api/site-content/upload-image', requireAdmin, upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No image file received.' });
-  res.json({ url: `/uploads/${req.file.filename}` });
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file received.' });
+  }
+
+  res.json({
+    url: req.file.path
+  });
 });
 
 // =====================================================
@@ -1508,27 +1596,24 @@ app.get('/api/site-music', async (req, res) => {
   res.json(await store.getSiteMusic());
 });
 
-// Upload/replace the background track. Any previously uploaded file is
-// removed from disk so orphaned audio files don't pile up in /uploads.
+// Upload/replace the background track. Any previously uploaded track is
+// removed from Cloudinary so orphaned audio assets don't pile up.
 app.post('/api/site-music/upload', requireAdmin, uploadAudio.single('track'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file received.' });
 
   const settings = await store.getSiteMusic();
-  const oldFilename = settings.filename;
+  const oldUrl = settings.url;
 
   const updated = {
     ...settings,
-    url: `/uploads/${req.file.filename}`,
+    url: req.file.path,
     filename: req.file.filename,
     originalName: req.file.originalname,
     updatedAt: new Date().toISOString()
   };
   await store.saveSiteMusic(updated);
 
-  if (oldFilename) {
-    const oldPath = path.join(UPLOADS_DIR, oldFilename);
-    fs.unlink(oldPath, () => {}); // best-effort cleanup, ignore errors
-  }
+  if (oldUrl) deleteCloudinaryAsset(oldUrl, 'video'); // best-effort cleanup, ignore errors
 
   res.json({ message: 'Track uploaded.', settings: updated });
 });
@@ -1554,9 +1639,7 @@ app.put('/api/site-music', requireAdmin, async (req, res) => {
 // Remove the current track entirely (deletes the file, resets to defaults).
 app.delete('/api/site-music', requireAdmin, async (req, res) => {
   const settings = await store.getSiteMusic();
-  if (settings.filename) {
-    fs.unlink(path.join(UPLOADS_DIR, settings.filename), () => {});
-  }
+  if (settings.url) deleteCloudinaryAsset(settings.url, 'video');
   const reset = { ...store.defaultMusicSettings() };
   await store.saveSiteMusic(reset);
   res.json({ message: 'Track removed.', settings: reset });

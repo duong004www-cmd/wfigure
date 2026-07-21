@@ -203,7 +203,16 @@ function wireProductForm() {
       const result = await res.json();
       if (!res.ok) { setFormAlert(result.error || 'Failed to save product.', 'error'); return; }
       setFormAlert(result.message, 'success');
-      await loadProducts();
+      if (result.product) {
+    if (editingId) {
+        const index = allProducts.findIndex(p => p.id === editingId);
+        if (index !== -1) allProducts[index] = result.product;
+    } else {
+        allProducts.unshift(result.product);
+    }
+
+    renderProductTable();
+}
       setTimeout(() => {
         resetProductForm();
         document.querySelector('.admin-nav-item[data-view="products"]').click();
