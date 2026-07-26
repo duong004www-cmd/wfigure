@@ -176,7 +176,7 @@ body.has-shipping-banner header.site-header{top:var(--banner-h);}
 }
 .menu-toggle svg{width:18px;height:18px;}
 
-.menu-items{display:flex;align-items:stretch;position:relative;flex:1;overflow-x:auto;scrollbar-width:none;}
+.menu-items{display:flex;align-items:stretch;position:relative;flex:1;overflow:visible;scrollbar-width:none;}
 .menu-items::-webkit-scrollbar{display:none;}
 .menu-other-link{
   display:flex;align-items:center;gap:4px;white-space:nowrap;
@@ -198,10 +198,15 @@ body.has-shipping-banner header.site-header{top:var(--banner-h);}
   position:absolute;top:100%;left:0;
   background:var(--surface-2);border:1px solid var(--line);
   border-radius:var(--radius-md);box-shadow:var(--shadow-2);
-  padding:22px;display:none;gap:32px;z-index:70;
+  padding:22px;display:flex;gap:32px;z-index:70;
   min-width:640px;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translateY(-6px);
+  transition:opacity .22s ease, transform .22s ease, visibility .22s ease;
 }
-.menu-item:hover .mega, .menu-item.open .mega{display:flex;}
+.menu-item:hover .mega, .menu-item.open .mega{
+  opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0);
+}
 .mega-col h4{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--gold);margin-bottom:12px;font-family:'Inter';font-weight:700;}
 .mega-col a{display:block;padding:6px 0;font-size:0.86rem;color:var(--text-dim);}
 .mega-col a:hover{color:var(--coral);padding-left:4px;transition:padding .15s;}

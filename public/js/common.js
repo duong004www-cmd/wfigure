@@ -102,9 +102,9 @@ function buildHeader() {
       <a href="tel:${SUPPORT_PHONE}" class="hotline" data-edit-id="header.topbarHotline" data-edit-type="block" data-edit-label="Top bar hotline">${ICONS.phone} <span data-edit-id="header.topbarHotlineText" data-edit-type="text" data-edit-label="Top bar hotline text">Hotline hỗ trợ: ${SUPPORT_PHONE}</span></a>
       <div class="topbar-links">
         <a href="/blog.html">Blog</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/pages/shipping.html" data-static="shipping">Shipping &amp; Warranty</a>
-        <a href="/pages/faq.html" data-static="faq">FAQ</a>
+        <a href="/contact.html">Liên hệ</a>
+        <a href="/pages/shipping.html" data-static="shipping">Vận chuyển &amp; Bảo hành</a>
+        <a href="/pages/faq.html" data-static="faq">Câu hỏi thường gặp</a>
       </div>
     </div>
   </div>
@@ -124,18 +124,18 @@ function buildHeader() {
       <div class="nav-actions">
         <div class="nav-action" id="accountAction" style="cursor:pointer;">
           ${ICONS.user}
-          <span id="accountLabel">Login</span>
+          <span id="accountLabel">Đăng nhập</span>
         </div>
         <a class="nav-action" href="/cart.html">
           ${ICONS.cart}
-          <span>Cart</span>
+          <span>Giỏ hàng</span>
           <span class="badge" id="cartBadge">0</span>
         </a>
       </div>
     </div>
     <nav class="menubar">
       <div class="container">
-        <button class="menu-toggle" id="menuToggleBtn">${ICONS.menu} MENU</button>
+        <button class="menu-toggle" id="menuToggleBtn">${ICONS.menu} DANH MỤC</button>
         <div class="menu-items" id="menuItems"><!-- injected --></div>
         <a class="menu-other-link" href="/category.html?category=all">Xem sản phẩm khác ${ICONS.chevronRight}</a>
       </div>
@@ -148,20 +148,20 @@ function buildHeader() {
       <button class="close-btn" id="closeMobileMenu">${ICONS.close}</button>
       <a href="/index.html" class="logo">w<span class="accent">figure</span><span class="dot">.</span></a>
       <div class="offcanvas-section">
-        <h4>Account</h4>
-        <a href="/login.html">Login / Register</a>
+        <h4>Tài khoản</h4>
+        <a href="/login.html">Đăng nhập / Đăng ký</a>
         <a href="/blog.html">Blog</a>
-        <a href="/contact.html">Contact us</a>
-        <a href="tel:${SUPPORT_PHONE}">Call hotline ${SUPPORT_PHONE}</a>
+        <a href="/contact.html">Liên hệ</a>
+        <a href="tel:${SUPPORT_PHONE}">Gọi hotline ${SUPPORT_PHONE}</a>
       </div>
       <div class="offcanvas-section" id="mobileMenuCategories">
-        <h4>Categories</h4>
+        <h4>Danh mục</h4>
         <!-- injected -->
       </div>
     </div>
   </div>
 
-  <a href="tel:${SUPPORT_PHONE}" class="mobile-call">${ICONS.phone} Call hotline: ${SUPPORT_PHONE}</a>
+  <a href="tel:${SUPPORT_PHONE}" class="mobile-call">${ICONS.phone} Gọi hotline: ${SUPPORT_PHONE}</a>
   `;
 }
 
@@ -252,26 +252,26 @@ function buildFooter() {
       <p>wfigure is your destination for authentic anime &amp; manga figures — PVC scale figures, Nendoroid, Gundam models, plushies and character goods, curated for collectors.</p>
     </div>
     <div>
-      <h4>Policies</h4>
+      <h4>Chính sách</h4>
       <ul>
         <li><a href="/blog.html">Blog</a></li>
-        <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/pages/shipping.html">Shipping &amp; Warranty</a></li>
-        <li><a href="/pages/returns.html">Returns Policy</a></li>
-        <li><a href="/pages/privacy.html">Privacy Policy</a></li>
+        <li><a href="/contact.html">Liên hệ</a></li>
+        <li><a href="/pages/shipping.html">Vận chuyển &amp; Bảo hành</a></li>
+        <li><a href="/pages/returns.html">Chính sách đổi trả</a></li>
+        <li><a href="/pages/privacy.html">Chính sách bảo mật</a></li>
       </ul>
     </div>
     <div>
-      <h4>Account</h4>
+      <h4>Tài khoản</h4>
       <ul>
-        <li><a href="/login.html">Login</a></li>
-        <li><a href="/login.html?tab=register">Register</a></li>
-        <li><a href="/category.html?category=all">All Products</a></li>
-        <li><a href="/admin/dashboard.html">Admin</a></li>
+        <li><a href="/login.html">Đăng nhập</a></li>
+        <li><a href="/login.html?tab=register">Đăng ký</a></li>
+        <li><a href="/category.html?category=all">Tất cả sản phẩm</a></li>
+        <li><a href="/admin/dashboard.html">Quản trị</a></li>
       </ul>
     </div>
     <div>
-      <h4>Contact</h4>
+      <h4>Liên hệ</h4>
       <ul id="footerContactList">
         <li>Hotline: <a href="tel:${SUPPORT_PHONE}">${SUPPORT_PHONE}</a></li>
       </ul>
@@ -322,7 +322,7 @@ function renderMenu(menuData) {
   }).join('');
 
   if (mobileCats) {
-    mobileCats.innerHTML = '<h4>Categories</h4>' + menuData.menu.map(item => {
+    mobileCats.innerHTML = '<h4>Danh mục</h4>' + menuData.menu.map(item => {
       return `<a href="${simpleMenuHref(item)}">${item.label}</a>`;
     }).join('');
   }
@@ -346,7 +346,7 @@ async function refreshAccountState() {
     const res = await fetch('/api/me');
     if (res.ok) {
       const data = await res.json();
-      label.textContent = data.user.role === 'admin' ? 'Admin' : data.user.name.split(' ')[0];
+      label.textContent = data.user.role === 'admin' ? 'Quản trị' : data.user.name.split(' ')[0];
       action.onclick = () => {
         if (data.user.role === 'admin') {
           window.location.href = '/admin/dashboard.html';
@@ -357,7 +357,7 @@ async function refreshAccountState() {
       return;
     }
   } catch (e) { /* not logged in */ }
-  label.textContent = 'Login';
+  label.textContent = 'Đăng nhập';
   action.onclick = () => { window.location.href = '/login.html'; };
 }
 
