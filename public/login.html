@@ -182,83 +182,166 @@ function showSocialDivider() {
 // Works for both login and registration, same as Google above: the
 // backend creates the account automatically the first time someone signs
 // in with a given Facebook account.
+
 async function handleFacebookAccessToken(accessToken) {
   try {
     const res = await fetch('/api/auth/facebook', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ accessToken })
     });
+
     const result = await res.json();
-    if (!res.ok) { setAlert(result.error || 'Facebook sign-in failed.', 'error'); return; }
+
+    if (!res.ok) {
+      setAlert(result.error || 'Facebook sign-in failed.', 'error');
+      return;
+    }
+
     setAlert(result.message, 'success');
-    setTimeout(() => { window.location.href = '/index.html'; }, 700);
+
+    setTimeout(() => {
+      window.location.href = '/index.html';
+    }, 700);
+
   } catch (err) {
+    console.error(err);
     setAlert('Something went wrong signing in with Facebook.', 'error');
   }
 }
 
 (async function initSocialSignIn() {
+
   let cfg;
+
   try {
     const res = await fetch('/api/config');
     cfg = await res.json();
   } catch (e) {
-    return; // Social sign-in is optional — regular email/password still works.
+    return;
   }
 
-  // Google
+  // ---------------- Google ----------------
+
   if (cfg.googleClientId) {
     try {
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        if (!window.google || !window.google.accounts) return;
+
+      const googleScript = document.createElement('script');
+      googleScript.src = 'https://accounts.google.com/gsi/client';
+      googleScript.async = true;
+      googleScript.defer = true;
+
+      googleScript.onload = () => {
+
+        if (!window.google?.accounts) return;
+
         window.google.accounts.id.initialize({
           client_id: cfg.googleClientId,
           callback: handleGoogleCredential
         });
+
         window.google.accounts.id.renderButton(
           document.getElementById('googleSignInBtn'),
-          { theme: 'outline', size: 'large', width: 320, text: 'continue_with' }
+          {
+            theme: 'outline',
+            size: 'large',
+            width: 320,
+            text: 'continue_with'
+          }
         );
+
         document.getElementById('googleSignInWrap').style.display = 'block';
         showSocialDivider();
+
       };
-      document.head.appendChild(script);
-    } catch (e) {
-      // If anything goes wrong here, the regular form still works fine.
+
+      document.head.appendChild(googleScript);
+
+    } catch (err) {
+      console.error(err);
     }
   }
 
-  // Facebook
+  // ---------------- Facebook ----------------
+
   if (cfg.facebookAppId) {
-    try {
-      window.fbAsyncInit = function() {
-        FB.init({ appId: cfg.facebookAppId, cookie: true, xfbml: false, version: 'v20.0' });
-      };
-      const script = document.createElement('script');
-      script.src = 'https://connect.facebook.net/en_US/sdk.js';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
 
-      document.getElementById('facebookSignInBtn').addEventListener('click', () => {
-        if (!window.FB) { setAlert('Facebook SDK is still loading, please try again in a moment.', 'error'); return; }
-        FB.login((response) => {
-          if (response.authResponse && response.authResponse.accessToken) {
-            handleFacebookAccessToken(response.authResponse.accessToken);
+    try {
+
+      window.fbAsyncInit = function () {
+
+        window.FB.init({
+          appId: cfg.facebookAppId,
+          cookie: true,
+          xfbml: false,
+          version: 'v20.0'
+        });
+
+      };
+
+      const fbScript = document.createElement('script');
+
+      fbScript.src = 'https://connect.facebook.net/en_US/sdk.js';
+      fbScript.async = true;
+      fbScript.defer = true;
+
+      fbScript.onload = () => {
+        console.log('Facebook SDK loaded');
+      };
+
+      document.head.appendChild(fbScript);
+
+      const facebookWrap = document.getElementById('facebookSignInWrap');
+      const facebookBtn = document.getElementById('facebookSignInBtn');
+
+      if (facebookWrap) {
+        facebookWrap.style.display = 'block';
+        showSocialDivider();
+      }
+
+      if (facebookBtn) {
+
+        facebookBtn.addEventListener('click', () => {
+
+          if (!window.FB) {
+            setAlert('Facebook SDK is still loading. Please try again.', 'error');
+            return;
           }
-        }, { scope: 'email public_profile' });
-      });
-      document.getElementById('facebookSignInWrap').style.display = 'block';
-      showSocialDivider();
-    } catch (e) {
-      // If anything goes wrong here, the regular form still works fine.
+
+          window.FB.login((response) => {
+
+            if (response.authResponse?.accessToken) {
+
+              handleFacebookAccessToken(
+                response.authResponse.accessToken
+              );
+
+              return;
+            }
+
+            if (response.status === 'not_authorized') {
+              setAlert('Facebook permission denied.', 'error');
+              return;
+            }
+
+            setAlert('Facebook sign in cancelled.', 'error');
+
+          }, {
+            scope: 'public_profile,email'
+          });
+
+        });
+
+      }
+
+    } catch (err) {
+      console.error(err);
     }
+
   }
+
 })();
 </script>
 </body>
